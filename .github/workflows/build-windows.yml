@@ -59,51 +59,65 @@ jobs:
 
       - name: Download kiwipiepy model
         run: |
-          python -c "import kiwipiepy; m = kiwipiepy.Kiwi(); print('Kiwi model loaded:', m)"
+          python -c "
+          import kiwipiepy, pathlib, glob, os
+          m = kiwipiepy.Kiwi()
+          print('Kiwi loaded:', m)
+          # Find model files - check common locations
+          candidates = [
+              pathlib.Path(kiwipiepy.__path__[0]) / 'model',
+              pathlib.Path.home() / '.kiwipiepy' / 'model',
+              pathlib.Path.home() / '.kiwipiepy',
+          ]
+          # Also search for recently created model files
+          for p in candidates:
+              print(f'{p}: exists={p.exists()}, contents={list(p.iterdir()) if p.exists() else \"N/A\"}')
+          # Search for kiwi model files in temp/appdata
+          for root in [os.environ.get('TEMP', ''), os.environ.get('LOCALAPPDATA', '')]:
+              if root:
+                  found = glob.glob(os.path.join(root, '**', '*.tar.gz'), recursive=True)
+                  if found:
+                      print(f'Found tar in {root}: {found}')
+          "
 
-      - name: Build with PyInstaller
+       - name: Build with PyInstaller
         run: |
-          # Find kiwipiepy model path — use forward slashes via as_posix()
+          # Build --add-data args dynamically
+          $addData = @()
+          $addData += "--add-data"
+          $addData += "backend/dictionary/bundled_dict.json;backend/dictionary"
+          $addData += "--add-data"
+          $addData += "frontend/dist;frontend_dist"
+
+          # Find kiwipiepy model
           python -c "import kiwipiepy, pathlib; p=pathlib.Path(kiwipiepy.__path__[0])/'model'; open('kiwi_model_path.txt','w').write(p.as_posix())"
           $kiwiModel = Get-Content kiwi_model_path.txt
           Write-Host "Kiwi model path: $kiwiModel"
           Write-Host "Kiwi model exists: $(Test-Path $kiwiModel)"
           if (Test-Path $kiwiModel) {
-            Write-Host "Kiwi model contents:"
             Get-ChildItem $kiwiModel | Format-Table Name, Length
+            $addData += "--add-data"
+            $addData += "$kiwiModel;kiwipiepy/model"
+          } else {
+            Write-Host "WARNING: kiwipiepy model not found — will download at first use"
           }
 
-          pyinstaller --clean --onedir `
-            --name KoreanVocabExtractor `
-            --add-data "backend/dictionary/bundled_dict.json;backend/dictionary" `
-            --add-data "frontend/dist;frontend_dist" `
-            --add-data "$kiwiModel;kiwipiepy/model" `
-            --hidden-import api `
-            --hidden-import api.extract_vocab `
-            --hidden-import api.models `
-            --hidden-import cache `
-            --hidden-import cache.store `
-            --hidden-import config_paths `
-            --hidden-import dictionary `
-            --hidden-import dictionary.bundled `
-            --hidden-import dictionary.nikl `
-            --hidden-import dictionary.provider `
-            --hidden-import nlp `
-            --hidden-import nlp.pipeline `
-            --hidden-import nlp.ranker `
-            --hidden-import nlp.lemmatizer `
-            --hidden-import nlp.filtering `
-            --hidden-import nlp.tokenizer `
-            --hidden-import nlp.sentencizer `
-            --hidden-import nlp.translator `
-            --hidden-import deep_translator `
-            --hidden-import deep_translator.google_translator `
-            --exclude pytest `
-            --exclude setuptools `
-            --exclude pip `
-            --exclude tkinter `
-            --exclude unittest `
+          # Build hidden imports
+          $hiddenImports = @()
+          "api", "api.extract_vocab", "api.models", "cache", "cache.store",
+          "config_paths", "dictionary", "dictionary.bundled", "dictionary.nikl",
+          "dictionary.provider", "nlp", "nlp.pipeline", "nlp.ranker",
+          "nlp.lemmatizer", "nlp.filtering", "nlp.tokenizer", "nlp.sentencizer",
+          "nlp.translator", "deep_translator", "deep_translator.google_translator" |
+            ForEach-Object { $hiddenImports += "--hidden-import"; $hiddenImports += $_ }
+
+          # Run PyInstaller
+          pyinstaller --clean --onedir --name KoreanVocabExtractor `
             --distpath dist `
+            $addData `
+            $hiddenImports `
+            --exclude pytest --exclude setuptools --exclude pip `
+            --exclude tkinter --exclude unittest `
             backend/run_app.py
 
       - name: Create distribution ZIP
