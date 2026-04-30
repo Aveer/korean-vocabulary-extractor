@@ -11,30 +11,30 @@ Usage (packaged):
     KoreanVocabExtractor.exe
 """
 
-import http.server
-import json
 import os
-import shutil
 import socket
-import subprocess
 import sys
 import threading
+import traceback
 import webbrowser
 from pathlib import Path
 
-import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-
-# Resolve paths relative to the running executable (PyInstaller) or script
+# Resolve paths and fix sys.path for PyInstaller
 if getattr(sys, "frozen", False):
-    # Running as PyInstaller package
+    # Running as PyInstaller package — binaries are alongside the executable
     BASE_DIR = Path(sys.executable).parent
+    # Ensure bundled modules are findable
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
+    # _MEIPASS: temp dir where PyInstaller extracts one-file archives (not needed for onedir)
+    if hasattr(sys, "_MEIPASS"):
+        if str(sys._MEIPASS) not in sys.path:
+            sys.path.insert(0, sys._MEIPASS)
 else:
     # Running as script in development
     BASE_DIR = Path(__file__).parent
+    if str(BASE_DIR) not in sys.path:
+        sys.path.insert(0, str(BASE_DIR))
 
 FRONTEND_DIST = BASE_DIR / "frontend_dist"
 HOST = "127.0.0.1"
@@ -53,12 +53,17 @@ def _find_free_port(start_port: int = DEFAULT_PORT, max_attempts: int = 10) -> i
     raise OSError(f"No free port found in range {start_port}-{start_port + max_attempts}")
 
 
-def _build_app() -> FastAPI:
+def _build_app():
     """Build the FastAPI application with static file serving."""
+    import uvicorn
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import JSONResponse
+    from fastapi.staticfiles import StaticFiles
+
     from api.extract_vocab import router as extract_router
     from config_paths import get_config_path, get_cache_file
 
-    # Print config paths for debugging
     print(f"Config: {get_config_path()}")
     print(f"Cache:  {get_cache_file()}")
 
@@ -87,14 +92,16 @@ def _build_app() -> FastAPI:
     # Serve frontend static files
     if FRONTEND_DIST.exists():
         app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static")
+        print(f"Frontend: {FRONTEND_DIST}")
     else:
-        # Fallback: return a helpful message if frontend is not built
+        print(f"WARNING: Frontend not found at {FRONTEND_DIST}")
+
         @app.get("/")
         async def fallback_root():
             return JSONResponse(
                 status_code=503,
                 content={
-                    "error": "Frontend not built. Run 'npm run build' in the frontend/ directory.",
+                    "error": "Frontend not built.",
                     "health": "http://localhost:{port}/api/health".format(port=DEFAULT_PORT),
                 },
             )
@@ -103,12 +110,7 @@ def _build_app() -> FastAPI:
 
 
 def run(port: int = DEFAULT_PORT, open_browser: bool = True):
-    """Start the Korean Vocab Extractor application.
-
-    Args:
-        port: TCP port to listen on (default: 8765).
-        open_browser: Whether to open the default browser automatically.
-    """
+    """Start the Korean Vocab Extractor application."""
     actual_port = _find_free_port(port)
     url = f"http://{HOST}:{actual_port}"
 
@@ -131,6 +133,7 @@ def run(port: int = DEFAULT_PORT, open_browser: bool = True):
             webbrowser.open(url)
         threading.Thread(target=_open_browser, daemon=True).start()
 
+    import uvicorn
     uvicorn.run(
         app,
         host=HOST,
@@ -141,4 +144,17 @@ def run(port: int = DEFAULT_PORT, open_browser: bool = True):
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except Exception:
+        print("\n" + "=" * 50)
+        print("  ERROR: Failed to start")
+        print("=" * 50)
+        traceback.print_exc()
+        print("=" * 50)
+        print("\nPress Enter to exit...")
+        try:
+            input()
+        except EOFError:
+            pass
+        sys.exit(1)
