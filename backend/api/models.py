@@ -5,6 +5,39 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class DictionaryConfigRequest(BaseModel):
+    """Request to update dictionary configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: Literal["bundled", "nikl"] = Field(
+        ..., description="Dictionary provider to use"
+    )
+    api_key: Optional[str] = Field(
+        default=None, description="NIKL API key (required if provider is 'nikl')"
+    )
+
+
+class DictionaryConfigResponse(BaseModel):
+    """Response with current dictionary configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: str = Field(..., description="Current provider: 'bundled' or 'nikl'")
+    api_key_set: bool = Field(
+        ..., description="Whether an API key is configured for NIKL"
+    )
+    bundled_available: bool = Field(
+        ..., description="Whether bundled dictionary is available"
+    )
+    bundled_entry_count: int = Field(
+        ..., description="Number of entries in bundled dictionary"
+    )
+    bundled_source: str = Field(
+        ..., description="Source of bundled dictionary data"
+    )
+
+
 class ExtractVocabRequest(BaseModel):
     """Request to extract vocabulary from Korean text."""
 
@@ -46,11 +79,37 @@ class VocabCard(BaseModel):
         default=None, alias="sourceSentenceTranslation",
         description="English translation of source sentence",
     )
+    # Shortest useful Korean fragment containing the target word
+    source_fragment: str = Field(
+        ..., alias="sourceFragment", description="Shortest useful Korean fragment containing the word"
+    )
+    source_fragment_translation: Optional[str] = Field(
+        default=None, alias="sourceFragmentTranslation",
+        description="English translation of the Korean source fragment",
+    )
+    # Pre-formatted compact study line for display and copy
+    study_line: str = Field(
+        ..., alias="studyLine",
+        description="Compact study line: '(glosses) Korean fragment. (lemma) = English translation.'",
+    )
+    # CSV export fields
+    csv_front: str = Field(
+        ..., alias="csvFront",
+        description="CSV front column: '(glosses) Korean fragment. (lemma)'",
+    )
+    csv_back: str = Field(
+        ..., alias="csvBack",
+        description="CSV back column: 'English translation of the Korean source fragment.'",
+    )
     level: Optional[
         Literal[
             "TOPIK_I_1", "TOPIK_I_2", "TOPIK_II_3", "TOPIK_II_4", "TOPIK_II_5", "TOPIK_II_6", "unknown"
         ]
     ] = Field(default=None, description="Estimated TOPIK level")
+    difficulty_score: float = Field(
+        ..., alias="difficultyScore", ge=1.0, le=6.0,
+        description="Difficulty score 1-6 (1-2 beginner, 3-4 intermediate, 5-6 advanced)",
+    )
     frequency_in_text: int = Field(
         ..., alias="frequencyInText", ge=1,
         description="How many times this lemma appears in the text",
@@ -74,6 +133,19 @@ class ExtractMeta(BaseModel):
     )
     dictionary_provider: str = Field(
         default="NIKL", alias="dictionaryProvider", description="Dictionary provider used"
+    )
+    # Debug metadata (not shown in normal UI)
+    selected_target_level: Optional[str] = Field(
+        default=None, alias="selectedTargetLevel",
+        description="Target level selected by user",
+    )
+    candidate_count_before_filtering: Optional[int] = Field(
+        default=None, alias="candidateCountBeforeFiltering",
+        description="Candidates before level filtering",
+    )
+    level_distribution: Optional[dict[str, int]] = Field(
+        default=None, alias="levelDistribution",
+        description="Distribution of candidate levels",
     )
 
 

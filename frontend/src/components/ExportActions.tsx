@@ -6,14 +6,10 @@ interface Props {
 
 export default function ExportActions({ cards }: Props) {
   const copyAll = () => {
+    // Copy compact study lines, one per line
     const text = cards
-      .map((card) => {
-        const gloss = card.englishGlosses.join(", ");
-        const glossPart = gloss ? `(${gloss})` : "";
-        const translation = card.sourceSentenceTranslation ? ` = ${card.sourceSentenceTranslation}` : "";
-        return `${glossPart} ${card.sourceSentence} (${card.lemma})${translation}`;
-      })
-      .join("\n\n");
+      .map((card) => card.studyLine)
+      .join("\n");
 
     navigator.clipboard.writeText(text).catch(() => {
       // Fallback for older browsers
@@ -27,31 +23,25 @@ export default function ExportActions({ cards }: Props) {
   };
 
   const exportCSV = () => {
-    const header = "Korean,English,POS,Level,Example Korean,Example English,Notes";
+    // Two-column CSV: front,back
+    const header = "front,back";
     const rows = cards.map((card) => {
       const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
-      return [
-        escape(card.lemma),
-        escape(card.englishGlosses.join("; ")),
-        escape(card.pos),
-        escape(card.level || "unknown"),
-        escape(card.sourceSentence),
-        escape(card.sourceSentenceTranslation || ""),
-        escape(card.reason),
-      ].join(",");
+      return [escape(card.csvFront), escape(card.csvBack)].join(",");
     });
     downloadFile([header, ...rows].join("\n"), "vocab.csv", "text/csv");
   };
 
   const exportAnkiCSV = () => {
+    // Anki CSV: Front,Back,Example,Level
     const header = "Front,Back,Example,Level";
     const rows = cards.map((card) => {
       const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
       const front = escape(card.lemma);
       const gloss = card.englishGlosses.join("; ");
-      const example = card.sourceSentenceTranslation
-        ? `${card.sourceSentence}\n${card.sourceSentenceTranslation}`
-        : card.sourceSentence;
+      const example = card.sourceFragmentTranslation
+        ? `${card.sourceFragment}\n${card.sourceFragmentTranslation}`
+        : card.sourceFragment;
       const back = escape(`${gloss}\n\n${example}`);
       const level = escape(card.level || "unknown");
       return [front, back, escape(example), level].join(",");
