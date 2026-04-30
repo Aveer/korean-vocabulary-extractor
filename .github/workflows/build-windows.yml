@@ -72,14 +72,18 @@ jobs:
 
       - name: Create distribution ZIP
         run: |
-          $appDir = "dist\KoreanVocabExtractor"
-          $zipFile = "dist\KoreanVocabExtractor.zip"
-          if (Test-Path $appDir) {
-            Compress-Archive -Path "$appDir\*" -DestinationPath $zipFile -Force
+          Write-Host "=== dist/ contents ==="
+          Get-ChildItem -Path dist -Recurse | Format-Table Mode, Length, Name
+          $appDir = Get-ChildItem -Path dist -Directory | Select-Object -First 1
+          if ($appDir) {
+            $zipFile = "dist\KoreanVocabExtractor.zip"
+            Compress-Archive -Path "$($appDir.FullName)\*" -DestinationPath $zipFile -Force
             $size = [math]::Round((Get-Item $zipFile).Length / 1MB, 2)
             Write-Host "ZIP: $zipFile ($size MB)"
           } else {
-            Write-Error "App directory not found at $appDir"
+            Write-Host "=== build/ contents ==="
+            Get-ChildItem -Path build -Recurse -ErrorAction SilentlyContinue | Format-Table Mode, Length, Name
+            Write-Error "No app directory found in dist/"
             exit 1
           }
 
