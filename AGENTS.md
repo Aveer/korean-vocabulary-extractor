@@ -8,7 +8,41 @@ Korean vocabulary extraction study app. Paste Korean text → get study-ready vo
 - **Backend:** Python FastAPI
 - **Korean NLP:** `kiwipiepy` (Kiwi) — morphology-aware parsing is required; regex/whitespace tokenization is not enough
 - **Dictionary:** National Institute of Korean Language Korean-English Learners' Dictionary API
-- **Cache:** SQLite or local JSON
+- **Cache:** JSON file (`backend/cache_data/dictionary_cache.json`) with LRU-like eviction
+
+## Status
+
+**MVP complete** (2026-04-30). All features implemented, 26 tests passing.
+
+## Repository Map
+
+A full codemap is available at `codemap.md` in the project root.
+
+Before working on any task, read `codemap.md` to understand:
+- Project architecture and entry points
+- Directory responsibilities and design patterns
+- Data flow and integration points between modules
+
+## Architecture
+
+### Backend (`backend/`)
+- `main.py` — FastAPI app entry point, CORS, mounts `/api` router
+- `api/` — Endpoints (`extract_vocab.py`), Pydantic models (`models.py`), pipeline orchestration
+- `nlp/` — Kiwi morphological analysis, sentence splitting, candidate filtering, lemmatization, ranking
+- `dictionary/` — NIKL API provider, JSON file cache, degraded-mode fallback
+- `cache/` — Dictionary cache storage
+
+### Frontend (`frontend/`)
+- React + Vite + TypeScript
+- Textarea, TOPIK level selector, word count input, extract button
+- Vocab card results with copy, CSV export, Anki CSV export
+- Proxies API calls to `http://localhost:8000`
+
+### Pipeline (9 stages)
+1. Normalize input → 2. Sentence split → 3. Kiwi tokenization → 4. Candidate filtering → 5. Lemmatization → 6. Duplicate merging → 7. Dictionary lookup → 8. TOPIK level matching → 9. Ranking & formatting
+
+### Tests (`tests/`)
+- 26 tests covering sentence splitting, lemmatization, filtering, merging, ranking, degraded mode, API endpoint
 
 ## Critical Constraints
 
@@ -21,16 +55,26 @@ Korean vocabulary extraction study app. Paste Korean text → get study-ready vo
 
 ## API
 
-`POST /api/extract-vocab` — request/response shapes defined in `docs/korean-vocab-extractor-plan.md` §5.
+`POST /api/extract-vocab` — full spec in `README.md` §API.
 
-## Implementation Order
+## Running
 
-Follow the order in `docs/korean-vocab-extractor-plan.md` §12. Do not skip ahead.
+```bash
+# Backend
+cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000
+
+# Frontend
+cd frontend && npm run dev
+
+# Tests
+pytest tests/ -v
+```
 
 ## Key Docs
 
-- `docs/korean-vocab-extractor-plan.md` — Full implementation plan, architecture, pipeline, testing, DoD
-- `docs/korean-vocab-extractor-agent-prompt.md` — Detailed agent prompt with all specs
+- `README.md` — Setup, usage, API spec, pipeline explanation, limitations
+- `docs/korean-vocab-extractor-plan.md` — Original implementation plan (archival)
+- `docs/korean-vocab-extractor-agent-prompt.md` — Original agent prompt (archival)
 
 ## Lemmatization Must Work
 
