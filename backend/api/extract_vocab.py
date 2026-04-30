@@ -38,14 +38,14 @@ def _get_provider():
 
 
 def _build_study_line(card_data: dict) -> str:
-    """Build study line: '(glosses) Korean sentence. (lemma) = English translation.'"""
+    """Build study line: '(glosses) Korean fragment. (lemma) = English translation.'"""
     glosses = ", ".join(card_data.get("english_glosses", []))
     gloss_part = f"({glosses})" if glosses else ""
-    sentence = card_data.get("source_sentence", "")
+    fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
     lemma = card_data.get("lemma", "")
-    translation = card_data.get("source_sentence_translation", "")
+    translation = card_data.get("source_fragment_translation", "")
 
-    line = f"{gloss_part} {sentence} ({lemma})"
+    line = f"{gloss_part} {fragment} ({lemma})"
     if translation:
         line += f" = {translation}"
     return line.strip()
@@ -55,11 +55,11 @@ def _build_csv_fields(card_data: dict) -> tuple[str, str]:
     """Build CSV front/back fields."""
     glosses = ", ".join(card_data.get("english_glosses", []))
     gloss_part = f"({glosses})" if glosses else ""
-    sentence = card_data.get("source_sentence", "")
+    fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
     lemma = card_data.get("lemma", "")
-    translation = card_data.get("source_sentence_translation", "")
+    translation = card_data.get("source_fragment_translation", "")
 
-    front = f"{gloss_part} {sentence} ({lemma})".strip()
+    front = f"{gloss_part} {fragment} ({lemma})".strip()
     back = translation.strip() if translation else ""
     return front, back
 
@@ -145,13 +145,14 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
     for rc in ranked:
         fragment = rc.source_fragment or rc.first_sentence
         sentence = rc.first_sentence
-        translation = translator.translate(sentence)
+        fragment_translation = translator.translate(fragment)
+        sentence_translation = translator.translate(sentence) if fragment != sentence else fragment_translation
 
         card_data = {
             "lemma": rc.lemma,
             "english_glosses": rc.english_glosses or [],
-            "source_sentence": sentence,
-            "source_sentence_translation": translation,
+            "source_fragment": fragment,
+            "source_fragment_translation": fragment_translation,
         }
 
         study_line = _build_study_line(card_data)
@@ -164,9 +165,9 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
             english_glosses=rc.english_glosses or [],
             korean_definition=rc.korean_definition,
             source_sentence=sentence,
-            source_sentence_translation=translation,
+            source_sentence_translation=sentence_translation,
             source_fragment=fragment,
-            source_fragment_translation=translation,
+            source_fragment_translation=fragment_translation,
             study_line=study_line,
             csv_front=csv_front,
             csv_back=csv_back,

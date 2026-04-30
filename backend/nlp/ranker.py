@@ -327,35 +327,60 @@ def _pick_shortest_fragment(candidate: LemmaCandidate) -> str:
 
 
 def _extract_fragment(sentence: str, surface: str, lemma: str) -> str:
-    """Extract shortest useful fragment containing the target word."""
+    """Extract shortest useful fragment containing the target word.
+
+    Strategy: extract a window around the target word, respecting word
+    boundaries. Max length ~45 chars to keep output concise.
+    """
+    max_len = 45
+
     # Find the position of the surface form in the sentence
     surface_pos = sentence.find(surface)
     if surface_pos < 0:
-        # Try to find by lemma (may not match exactly due to morphology)
+        # Truncate long sentences
+        if len(sentence) > max_len:
+            return sentence[:max_len].rstrip() + "…"
         return sentence
 
-    # Split by natural boundaries
-    fragments = _split_into_clauses(sentence)
+    # Window around the target word
+    window_before = 20
+    window_after = 20
+    start = max(0, surface_pos - window_before)
+    end = min(len(sentence), surface_pos + len(surface) + window_after)
 
-    # Find the fragment containing the target word
-    best_fragment = None
-    best_length = len(sentence)
+    # Adjust start to word boundary (space or beginning)
+    while start > 0 and sentence[start - 1] not in " .?!,:;…\n":
+        start -= 1
+        if start <= max(0, surface_pos - window_before - 5):
+            break
+    # Don't start mid-word: skip back to space if we're in the middle
+    if start > 0 and sentence[start] not in " .?!,:;…\n":
+        # Find previous space
+        prev_space = sentence.rfind(" ", 0, start)
+        if prev_space >= 0:
+            start = prev_space + 1
 
-    for frag in fragments:
-        if surface in frag or _lemma_in_fragment(frag, surface):
-            frag_len = len(frag.strip())
-            # Must be at least 3 characters and contain the target
-            if 3 <= frag_len < best_length:
-                best_fragment = frag.strip()
-                best_length = frag_len
+    # Adjust end to word boundary
+    while end < len(sentence) and sentence[end] not in " .?!,:;…\n":
+        end += 1
+        if end >= min(len(sentence), surface_pos + len(surface) + window_after + 5):
+            break
 
-    # If fragment is too short, expand to include neighbors
-    if best_fragment and len(best_fragment) < 8:
-        expanded = _expand_fragment(sentence, best_fragment, surface)
-        if expanded:
-            return expanded
+    fragment = sentence[start:end].strip()
 
-    return best_fragment or sentence
+    # If still too long, hard truncate at word boundary
+    if len(fragment) > max_len:
+        trunc_pos = fragment.rfind(" ", 0, max_len)
+        if trunc_pos > 10:
+            fragment = fragment[:trunc_pos].rstrip() + "…"
+        else:
+            fragment = fragment[:max_len].rstrip() + "…"
+
+    # If too short, just return the window
+    if len(fragment) < 3:
+        return sentence[max(0, surface_pos - 5):surface_pos + len(surface) + 10].strip()
+
+    return fragment
 
 
 def _split_into_clauses(sentence: str) -> list[str]:
