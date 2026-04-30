@@ -38,10 +38,26 @@ POS_SCORES = {
 
 # Ultra-basic words to strongly penalize at higher levels
 BASIC_WORDS = {
+    # Core verbs
     "하다", "이다", "있다", "없다", "되다", "지나다", "주다",
     "나다", "아니다", "보다", "듣다", "말하다", "가다",
     "오다", "서다", "앉다", "먹다", "자다", "일하다", "알다",
+    # Basic nouns/adjectives
     "사람", "남자", "여자", "집", "일", "돈", "좋다", "크다", "작다",
+    "것", "때", "곳", "년", "달", "시간", "분", "나라", "세계",
+    # Basic adverbs (very common, TOPIK I level)
+    "지금", "다시", "이렇게", "그렇게", "잘", "못", "순간", "그래도",
+    "그래서", "또", "또한", "모두", "매우", "여기", "저기", "거기",
+    "이제", "벌써", "아직", "이미", "먼저", "나중", "끝", "처음",
+    "또는", "혹은", "아니면", "그리고", "하지만", "그러나", "그런데",
+    "아니", "네", "예", "아니요",
+    "이곳", "저곳", "그곳", "저렇게",
+    "누구", "무엇", "어디", "언제", "왜", "어떻게",
+    "각각", "모든", "일부", "어떤", "아무",
+    "없음", "없어",
+    "이렇다", "그렇다", "저렇다",
+    "잘못", "잘못하다",
+    "순간적",
 }
 
 # Advanced POS heuristics: certain POS types tend to be higher-level
@@ -268,12 +284,14 @@ def _compute_score(
 
     # TOO EASY penalty (CRITICAL for high levels)
     if candidate.lemma in BASIC_WORDS:
-        if target_level_num >= 5.0:
-            score -= 8.0  # Very strong penalty for TOPIK II 5-6
+        if target_level_num >= 6.0:
+            score -= 20.0  # Extremely strong penalty for TOPIK II 6
+        elif target_level_num >= 5.0:
+            score -= 12.0  # Very strong penalty for TOPIK II 5
         elif target_level_num >= 4.0:
-            score -= 5.0  # Strong penalty for TOPIK II 4
+            score -= 7.0  # Strong penalty for TOPIK II 4
         elif target_level_num >= 3.0:
-            score -= 3.0  # Moderate penalty for TOPIK II 3
+            score -= 4.0  # Moderate penalty for TOPIK II 3
         else:
             score -= 2.0  # Light penalty for ANY/low levels
 

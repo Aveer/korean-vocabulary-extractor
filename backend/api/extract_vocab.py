@@ -40,7 +40,7 @@ def _get_provider():
 def _build_study_line(card_data: dict) -> str:
     """Build study line: '(glosses) Korean fragment. (lemma) = English translation.'"""
     glosses = ", ".join(card_data.get("english_glosses", []))
-    gloss_part = f"({glosses})" if glosses else ""
+    gloss_part = f"({glosses})" if glosses else "(—)"
     fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
     lemma = card_data.get("lemma", "")
     translation = card_data.get("source_fragment_translation", "")
@@ -54,7 +54,7 @@ def _build_study_line(card_data: dict) -> str:
 def _build_csv_fields(card_data: dict) -> tuple[str, str]:
     """Build CSV front/back fields."""
     glosses = ", ".join(card_data.get("english_glosses", []))
-    gloss_part = f"({glosses})" if glosses else ""
+    gloss_part = f"({glosses})" if glosses else "(—)"
     fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
     lemma = card_data.get("lemma", "")
     translation = card_data.get("source_fragment_translation", "")
