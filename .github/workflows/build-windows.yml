@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: master
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,6 +50,12 @@ jobs:
           }
           $count = (Get-ChildItem -Path "frontend/dist" -Recurse -File).Count
           Write-Host "Frontend built: $count files"
+
+      - name: Verify checkout
+        run: |
+          git log --oneline -1
+          Write-Host "Spec line 22:"
+          (Get-Content KoreanVocabExtractor.spec)[21]
 
       - name: Install Python dependencies
         run: |
