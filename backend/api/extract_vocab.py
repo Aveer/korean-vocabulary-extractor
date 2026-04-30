@@ -1,11 +1,19 @@
-"""API endpoints for vocabulary extraction."""
+"""API endpoints for vocabulary extraction and dictionary configuration."""
 
 from fastapi import APIRouter, HTTPException
 
-from api.models import ExtractVocabRequest, ExtractVocabResponse, VocabCard, ExtractMeta
+from api.models import (
+    ExtractVocabRequest,
+    ExtractVocabResponse,
+    VocabCard,
+    ExtractMeta,
+    DictionaryConfigRequest,
+    DictionaryConfigResponse,
+)
 from nlp.pipeline import ExtractionPipeline
 from nlp.ranker import rank_candidates
-from dictionary.provider import create_provider
+from dictionary.provider import create_provider, get_config, save_config
+from dictionary.bundled import BundledProvider
 
 router = APIRouter()
 
@@ -28,6 +36,33 @@ def _get_provider():
     return _provider
 
 
+def _build_study_line(card_data: dict) -> str:
+    """Build compact study line: '(glosses) Korean fragment. (lemma) = English translation.'"""
+    glosses = ", ".join(card_data.get("english_glosses", []))
+    gloss_part = f"({glosses})" if glosses else ""
+    fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
+    lemma = card_data.get("lemma", "")
+    translation = card_data.get("source_fragment_translation", "")
+
+    line = f"{gloss_part} {fragment} ({lemma})"
+    if translation:
+        line += f" = {translation}"
+    return line.strip()
+
+
+def _build_csv_fields(card_data: dict) -> tuple[str, str]:
+    """Build CSV front/back fields."""
+    glosses = ", ".join(card_data.get("english_glosses", []))
+    gloss_part = f"({glosses})" if glosses else ""
+    fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
+    lemma = card_data.get("lemma", "")
+    translation = card_data.get("source_fragment_translation", "")
+
+    front = f"{gloss_part} {fragment} ({lemma})".strip()
+    back = translation.strip() if translation else ""
+    return front, back
+
+
 @router.post("/extract-vocab", response_model=ExtractVocabResponse)
 async def extract_vocab(request: ExtractVocabRequest):
     """Extract vocabulary from Korean text.
@@ -39,8 +74,8 @@ async def extract_vocab(request: ExtractVocabRequest):
     4. Candidate filtering
     5. Lemmatization & merging
     6. Dictionary lookup
-    7. Ranking
-    8. Format output
+    7. Ranking (level-aware)
+    8. Format output with study lines
     """
     if not request.text or not request.text.strip():
         raise HTTPException(status_code=400, detail="Please provide Korean text")
@@ -70,6 +105,8 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
     # Stages 1-5: NLP pipeline (normalize, split, tokenize, filter, merge)
     sentences, candidates = pipeline.extract(request.text)
 
+    candidate_count_before = len(candidates)
+
     if not candidates:
         return ExtractVocabResponse(
             cards=[],
@@ -78,6 +115,8 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
                 candidate_count=0,
                 returned_count=0,
                 dictionary_provider="none",
+                selected_target_level=request.target_level,
+                candidate_count_before_filtering=candidate_count_before,
             ),
         )
 
@@ -85,7 +124,7 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
     def dict_lookup(lemma: str):
         return provider.lookup(lemma)
 
-    # Stage 7-8: Ranking
+    # Stage 7-8: Ranking (level-aware)
     ranked = rank_candidates(
         candidates,
         target_level=request.target_level,
@@ -93,9 +132,27 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
         dictionary_lookup=dict_lookup if provider.is_available() else None,
     )
 
-    # Stage 9: Format output
+    # Build level distribution for debug metadata
+    level_distribution = {}
+    for rc in ranked:
+        level = rc.level or "unknown"
+        level_distribution[level] = level_distribution.get(level, 0) + 1
+
+    # Stage 9: Format output with study lines
     cards = []
     for rc in ranked:
+        fragment = rc.source_fragment or rc.first_sentence
+
+        card_data = {
+            "lemma": rc.lemma,
+            "english_glosses": rc.english_glosses or [],
+            "source_fragment": fragment,
+            "source_fragment_translation": None,  # Not available without translation service
+        }
+
+        study_line = _build_study_line(card_data)
+        csv_front, csv_back = _build_csv_fields(card_data)
+
         card = VocabCard(
             lemma=rc.lemma,
             display=rc.display,
@@ -104,13 +161,19 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
             korean_definition=rc.korean_definition,
             source_sentence=rc.first_sentence,
             source_sentence_translation=None,
+            source_fragment=fragment,
+            source_fragment_translation=None,
+            study_line=study_line,
+            csv_front=csv_front,
+            csv_back=csv_back,
             level=rc.level,
+            difficulty_score=rc.difficulty_score,
             frequency_in_text=rc.frequency,
             reason=rc.reason,
         )
         cards.append(card)
 
-    provider_name = "NIKL" if provider.is_available() else "none"
+    provider_name = type(provider).__name__.replace("Provider", "")
 
     return ExtractVocabResponse(
         cards=cards,
@@ -119,5 +182,55 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
             candidate_count=len(candidates),
             returned_count=len(cards),
             dictionary_provider=provider_name,
+            selected_target_level=request.target_level,
+            candidate_count_before_filtering=candidate_count_before,
+            level_distribution=level_distribution,
         ),
+    )
+
+
+@router.get("/dictionary-config", response_model=DictionaryConfigResponse)
+async def get_dictionary_config():
+    """Get current dictionary configuration."""
+    config = get_config()
+    bundled = BundledProvider()
+    return DictionaryConfigResponse(
+        provider=config.get("provider", "bundled"),
+        api_key_set=bool(config.get("api_key", "").strip()),
+        bundled_available=bundled.is_available(),
+        bundled_entry_count=bundled.entry_count,
+        bundled_source=bundled.source,
+    )
+
+
+@router.put("/dictionary-config", response_model=DictionaryConfigResponse)
+async def set_dictionary_config(request: DictionaryConfigRequest):
+    """Update dictionary configuration.
+
+    - provider: 'bundled' or 'nikl'
+    - api_key: optional NIKL API key (required if provider is 'nikl')
+    """
+    if request.provider == "nikl" and not request.api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="API key is required for NIKL provider",
+        )
+
+    config = {
+        "provider": request.provider,
+        "api_key": request.api_key or "",
+    }
+    save_config(config)
+
+    # Reset provider so next request picks up new config
+    global _provider
+    _provider = None
+
+    bundled = BundledProvider()
+    return DictionaryConfigResponse(
+        provider=request.provider,
+        api_key_set=bool(request.api_key),
+        bundled_available=bundled.is_available(),
+        bundled_entry_count=bundled.entry_count,
+        bundled_source=bundled.source,
     )

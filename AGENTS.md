@@ -7,12 +7,13 @@ Korean vocabulary extraction study app. Paste Korean text → get study-ready vo
 - **Frontend:** React + Vite + TypeScript
 - **Backend:** Python FastAPI
 - **Korean NLP:** `kiwipiepy` (Kiwi) — morphology-aware parsing is required; regex/whitespace tokenization is not enough
-- **Dictionary:** National Institute of Korean Language Korean-English Learners' Dictionary API
+- **Dictionary:** Bundled offline (kengdic, 67K entries, `dictionary/bundled_dict.json`) + optional NIKL API. Switchable via settings.
 - **Cache:** JSON file (`backend/cache_data/dictionary_cache.json`) with LRU-like eviction
+- **Config:** `backend/cache_data/dictionary_config.json` — provider choice + API key
 
 ## Status
 
-**MVP complete** (2026-04-30). All features implemented, 26 tests passing.
+**MVP complete** (2026-04-30). All features implemented, 26 tests passing. Bundled offline dictionary + dark mode.
 
 ## Repository Map
 
@@ -29,13 +30,15 @@ Before working on any task, read `codemap.md` to understand:
 - `main.py` — FastAPI app entry point, CORS, mounts `/api` router
 - `api/` — Endpoints (`extract_vocab.py`), Pydantic models (`models.py`), pipeline orchestration
 - `nlp/` — Kiwi morphological analysis, sentence splitting, candidate filtering, lemmatization, ranking
-- `dictionary/` — NIKL API provider, JSON file cache, degraded-mode fallback
+- `dictionary/` — BundledProvider (offline, 67K entries), NIKL API provider, config-driven switching
 - `cache/` — Dictionary cache storage
 
 ### Frontend (`frontend/`)
 - React + Vite + TypeScript
 - Textarea, TOPIK level selector, word count input, extract button
 - Vocab card results with copy, CSV export, Anki CSV export
+- Settings panel: dictionary source selector, API key input, dark/light mode toggle
+- Theme persisted in `localStorage`, dictionary config persisted on backend
 - Proxies API calls to `http://localhost:8000`
 
 ### Pipeline (9 stages)
@@ -55,15 +58,18 @@ Before working on any task, read `codemap.md` to understand:
 
 ## API
 
-`POST /api/extract-vocab` — full spec in `README.md` §API.
+- `POST /api/extract-vocab` — full spec in `README.md` §API.
+- `GET /api/dictionary-config` — current provider, bundled stats
+- `PUT /api/dictionary-config` — switch provider, save API key
 
 ## Running
 
 ```bash
-# Backend
-cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000
+# All-in-one (starts both, kills both on Ctrl+C)
+./dev.sh
 
-# Frontend
+# Or separately:
+cd backend && source venv/bin/activate && uvicorn main:app --reload --port 8000
 cd frontend && npm run dev
 
 # Tests

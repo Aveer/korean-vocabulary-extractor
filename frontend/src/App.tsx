@@ -1,7 +1,16 @@
-import { useState } from "react";
-import { ExtractVocabRequest, ExtractVocabResponse, TargetLevel, VocabCard } from "./types";
+import { useState, useEffect } from "react";
+import {
+  AppTheme,
+  ExtractVocabRequest,
+  ExtractVocabResponse,
+  TargetLevel,
+  VocabCard,
+  DictionaryConfig,
+  DictionaryProvider,
+} from "./types";
 import VocabCardComponent from "./components/VocabCard";
 import ExportActions from "./components/ExportActions";
+import DictionarySettings from "./components/DictionarySettings";
 import "./App.css";
 
 const TARGET_LEVELS: { value: TargetLevel; label: string }[] = [
@@ -19,6 +28,47 @@ export default function App() {
   const [cards, setCards] = useState<VocabCard[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Theme state (persisted in localStorage)
+  const [theme, setTheme] = useState<AppTheme>(
+    (): AppTheme => (localStorage.getItem("theme") as AppTheme) || "light"
+  );
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  // Dictionary config state
+  const [dictConfig, setDictConfig] = useState<DictionaryConfig | null>(null);
+  const [dictLoading, setDictLoading] = useState(true);
+
+  // Fetch dictionary config on mount
+  useEffect(() => {
+    fetch("/api/dictionary-config")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Config fetch failed: ${res.status}`);
+        return res.json();
+      })
+      .then((data: DictionaryConfig) => setDictConfig(data))
+      .catch(() => setDictConfig(null))
+      .finally(() => setDictLoading(false));
+  }, []);
+
+  const handleSaveDictConfig = async (provider: DictionaryProvider, apiKey?: string) => {
+    const response = await fetch("/api/dictionary-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.detail || `Failed to save: ${response.status}`);
+    }
+    const updated: DictionaryConfig = await response.json();
+    setDictConfig(updated);
+  };
 
   const handleExtract = async () => {
     if (!text.trim()) {
@@ -103,6 +153,14 @@ export default function App() {
           {loading ? "Extracting vocabulary..." : "Extract vocabulary"}
         </button>
       </div>
+
+      <DictionarySettings
+        config={dictConfig}
+        loading={dictLoading}
+        onSave={handleSaveDictConfig}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
 
       {error && <div className="error">{error}</div>}
 
