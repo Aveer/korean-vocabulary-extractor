@@ -51,28 +51,23 @@ jobs:
           $count = (Get-ChildItem -Path "frontend/dist" -Recurse -File).Count
           Write-Host "Frontend built: $count files"
 
-      - name: Verify checkout
-        run: |
-          git log --oneline -1
-          Write-Host "Spec line 22:"
-          (Get-Content KoreanVocabExtractor.spec)[21]
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install pyinstaller
 
-      - name: Verify kiwipiepy model
-        run: |
-          python -c "import kiwipiepy; m = kiwipiepy.Kiwi(); print('Kiwi model OK:', m)"
-
       - name: Build with PyInstaller
         run: |
+          # Find kiwipiepy model path
+          $kiwiModel = python -c "import kiwipiepy, os; print(os.path.join(os.path.dirname(kiwipiepy.__file__), 'model'))"
+          Write-Host "Kiwi model: $kiwiModel"
+
           pyinstaller --clean --onedir `
             --name KoreanVocabExtractor `
             --add-data "backend/dictionary/bundled_dict.json;backend/dictionary" `
             --add-data "frontend/dist;frontend_dist" `
+            --add-data "$kiwiModel;kiwipiepy/model" `
             --hidden-import api `
             --hidden-import api.extract_vocab `
             --hidden-import api.models `
