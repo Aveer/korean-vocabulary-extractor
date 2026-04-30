@@ -1,0 +1,84 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. 0.1.0)"
+        required: false
+        default: "dev"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows Portable App
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Verify frontend build
+        run: |
+          if (-not (Test-Path "frontend/dist/index.html")) {
+            Write-Error "Frontend build failed — index.html not found"
+            exit 1
+          }
+          $count = (Get-ChildItem -Path "frontend/dist" -Recurse -File).Count
+          Write-Host "Frontend built: $count files"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pyinstaller
+
+      - name: Verify kiwipiepy model
+        run: |
+          python -c "import kiwipiepy; m = kiwipiepy.Kiwi(); print('Kiwi model OK:', m)"
+
+      - name: Build with PyInstaller
+        run: pyinstaller KoreanVocabExtractor.spec --clean
+
+      - name: Create distribution ZIP
+        run: |
+          $appDir = "dist\KoreanVocabExtractor"
+          $zipFile = "dist\KoreanVocabExtractor.zip"
+          if (Test-Path $appDir) {
+            Compress-Archive -Path "$appDir\*" -DestinationPath $zipFile -Force
+            $size = [math]::Round((Get-Item $zipFile).Length / 1MB, 2)
+            Write-Host "ZIP: $zipFile ($size MB)"
+          } else {
+            Write-Error "App directory not found at $appDir"
+            exit 1
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KoreanVocabExtractor-Windows
+          path: dist/KoreanVocabExtractor.zip
+          retention-days: 30
+          if-no-files-found: error

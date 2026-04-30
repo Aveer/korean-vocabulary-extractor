@@ -16,6 +16,13 @@ build/
 venv/
 .pytest_cache/
 
+# PyInstaller
+*.spec.bak
+build/
+
+# User data (config, cache — stored in %APPDATA% on Windows)
+cache_data/
+
 # Node
 node_modules/
 frontend/dist/
