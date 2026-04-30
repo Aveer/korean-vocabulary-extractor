@@ -7,13 +7,14 @@ Korean vocabulary extraction study app. Paste Korean text → get study-ready vo
 - **Frontend:** React + Vite + TypeScript
 - **Backend:** Python FastAPI
 - **Korean NLP:** `kiwipiepy` (Kiwi) — morphology-aware parsing is required; regex/whitespace tokenization is not enough
+- **Translation:** Google Translate via `deep-translator` — sentence-level English translations with in-memory caching
 - **Dictionary:** Bundled offline (kengdic, 67K entries, `dictionary/bundled_dict.json`) + optional NIKL API. Switchable via settings.
 - **Cache:** JSON file (`backend/cache_data/dictionary_cache.json`) with LRU-like eviction
 - **Config:** `backend/cache_data/dictionary_config.json` — provider choice + API key
 
 ## Status
 
-**MVP complete** (2026-04-30). All features implemented, 26 tests passing. Bundled offline dictionary + dark mode.
+**MVP complete** (2026-04-30). All features implemented, 34 tests passing. Bundled offline dictionary, dark mode, Google Translate sentence translations.
 
 ## Repository Map
 
@@ -29,7 +30,7 @@ Before working on any task, read `codemap.md` to understand:
 ### Backend (`backend/`)
 - `main.py` — FastAPI app entry point, CORS, mounts `/api` router
 - `api/` — Endpoints (`extract_vocab.py`), Pydantic models (`models.py`), pipeline orchestration
-- `nlp/` — Kiwi morphological analysis, sentence splitting, candidate filtering, lemmatization, ranking
+- `nlp/` — Kiwi morphological analysis, sentence splitting, candidate filtering, lemmatization, ranking, Google Translate
 - `dictionary/` — BundledProvider (offline, 67K entries), NIKL API provider, config-driven switching
 - `cache/` — Dictionary cache storage
 
@@ -45,7 +46,7 @@ Before working on any task, read `codemap.md` to understand:
 1. Normalize input → 2. Sentence split → 3. Kiwi tokenization → 4. Candidate filtering → 5. Lemmatization → 6. Duplicate merging → 7. Dictionary lookup → 8. TOPIK level matching → 9. Ranking & formatting
 
 ### Tests (`tests/`)
-- 26 tests covering sentence splitting, lemmatization, filtering, merging, ranking, degraded mode, API endpoint
+- 34 tests covering sentence splitting, lemmatization, filtering, merging, ranking, degraded mode, API endpoint, format validation
 
 ## Critical Constraints
 
@@ -55,6 +56,7 @@ Before working on any task, read `codemap.md` to understand:
 - Do NOT expose `KRDICT_API_KEY` to the frontend.
 - Do NOT permanently store pasted passages. Dictionary cache by lemma is OK.
 - Do NOT send pasted text to third-party LLM APIs without explicit opt-in.
+- Google Translate (`deep-translator`) is used for sentence-level English translations. Requires internet connection.
 
 ## API
 

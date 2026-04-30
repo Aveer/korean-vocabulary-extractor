@@ -10,6 +10,7 @@ Korean Vocab Extractor is a vocabulary extraction study app for Korean learners.
 - Morphology-aware lemmatization via `kiwipiepy` (Kiwi)
 - TOPIK II level filtering (`TOPIK_II_3` through `TOPIK_II_6`, plus `ANY`)
 - Dictionary lookup from the National Institute of Korean Language (NIKL) API
+- Sentence-level English translation via Google Translate (`deep-translator`)
 - Deterministic ranking based on frequency, POS, level match, and source context
 - Local dictionary cache (JSON) to minimize API calls
 - Degraded mode — works without an API key (glosses will be empty)
@@ -131,9 +132,14 @@ Extract vocabulary from Korean text.
       "englishGlosses": ["to start", "to begin"],
       "koreanDefinition": null,
       "sourceSentence": "한국어 학습을 시작했습니다.",
-      "sourceSentenceTranslation": null,
+      "sourceSentenceTranslation": "I started learning Korean.",
+      "sourceFragment": "시작했습니다.",
+      "studyLine": "(to start, to begin) 한국어 학습을 시작했습니다. (시작하다) = I started learning Korean.",
+      "csvFront": "(to start, to begin) 한국어 학습을 시작했습니다. (시작하다)",
+      "csvBack": "I started learning Korean.",
       "level": "TOPIK_II_3",
       "frequencyInText": 1,
+      "difficultyScore": 3.0,
       "reason": "Verb. Useful for comprehension."
     }
   ],
@@ -141,7 +147,7 @@ Extract vocabulary from Korean text.
     "inputLength": 18,
     "candidateCount": 5,
     "returnedCount": 1,
-    "dictionaryProvider": "NIKL"
+    "dictionaryProvider": "bundled"
   }
 }
 ```
@@ -156,19 +162,27 @@ Extract vocabulary from Korean text.
 | `englishGlosses`            | string[] | English translations from dictionary lookup.                      |
 | `koreanDefinition`          | string?  | Korean definition from dictionary (may be null).                  |
 | `sourceSentence`            | string   | Sentence from the input text containing the word.                 |
-| `sourceSentenceTranslation` | string?  | English translation of the source sentence (currently always null). |
+| `sourceSentenceTranslation` | string?  | English translation of the source sentence via Google Translate. |
+| `sourceFragment`            | string   | Shortest useful Korean fragment containing the word.              |
+| `studyLine`                 | string   | Pre-formatted study line: `(glosses) sentence. (lemma) = translation`. |
+| `csvFront`                  | string   | CSV front column: `(glosses) sentence. (lemma)`.                  |
+| `csvBack`                   | string   | CSV back column: English translation of the sentence.             |
 | `level`                     | string?  | Assigned TOPIK level: `TOPIK_I_1`–`TOPIK_I_2`, `TOPIK_II_3`–`TOPIK_II_6`, `unknown`, or null. |
 | `frequencyInText`           | number   | Number of times this lemma appears in the input text (≥1).        |
+| `difficultyScore`           | number   | Difficulty score 1-6 (1-2 beginner, 3-4 intermediate, 5-6 advanced). |
 | `reason`                    | string   | Human-readable explanation of why this word was selected.         |
 
 ### ExtractMeta fields
 
-| Field                  | Type   | Description                                          |
-| ---------------------- | ------ | ---------------------------------------------------- |
-| `inputLength`          | number | Length of input text in characters.                   |
-| `candidateCount`       | number | Total unique lemmas before ranking.                   |
-| `returnedCount`        | number | Number of cards returned after ranking.               |
-| `dictionaryProvider`   | string | `"NIKL"` if API key available, `"none"` otherwise.   |
+| Field                            | Type   | Description                                                          |
+| -------------------------------- | ------ | -------------------------------------------------------------------- |
+| `inputLength`                    | number | Length of input text in characters.                                   |
+| `candidateCount`                 | number | Total unique lemmas before ranking.                                   |
+| `returnedCount`                  | number | Number of cards returned after ranking.                               |
+| `dictionaryProvider`             | string | `"bundled"` for offline dictionary, `"nikl"` for NIKL API.           |
+| `selectedTargetLevel`            | string? | Target TOPIK level selected by user.                                  |
+| `candidateCountBeforeFiltering`  | number? | Candidates before level filtering (debug).                            |
+| `levelDistribution`              | object? | Distribution of candidate levels (debug).                             |
 
 ## Extraction Pipeline
 
@@ -187,7 +201,7 @@ The backend runs a 9-stage pipeline:
 ## Limitations
 
 - **Dictionary coverage:** NIKL API may not have entries for all words, especially slang, neologisms, or specialized terms
-- **No sentence translation:** The app does not use an LLM or translation API for sentence-level translation by default
+- **Sentence translation:** Uses Google Translate via `deep-translator` for sentence-level English translations. Requires internet connection; translations may be empty if the service is unavailable.
 - **Offline-only cache:** Dictionary cache is stored as a local JSON file; it does not persist across deployments unless the file is preserved
 - **No user accounts or progress tracking:** Each extraction is independent; there is no spaced repetition or learning history
 - **Single-language:** Only Korean-to-English extraction is supported
