@@ -12,6 +12,7 @@ from api.models import (
 )
 from nlp.pipeline import ExtractionPipeline
 from nlp.ranker import rank_candidates
+from nlp.translator import SentenceTranslator
 from dictionary.provider import create_provider, get_config, save_config
 from dictionary.bundled import BundledProvider
 
@@ -37,14 +38,14 @@ def _get_provider():
 
 
 def _build_study_line(card_data: dict) -> str:
-    """Build compact study line: '(glosses) Korean fragment. (lemma) = English translation.'"""
+    """Build study line: '(glosses) Korean sentence. (lemma) = English translation.'"""
     glosses = ", ".join(card_data.get("english_glosses", []))
     gloss_part = f"({glosses})" if glosses else ""
-    fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
+    sentence = card_data.get("source_sentence", "")
     lemma = card_data.get("lemma", "")
-    translation = card_data.get("source_fragment_translation", "")
+    translation = card_data.get("source_sentence_translation", "")
 
-    line = f"{gloss_part} {fragment} ({lemma})"
+    line = f"{gloss_part} {sentence} ({lemma})"
     if translation:
         line += f" = {translation}"
     return line.strip()
@@ -54,11 +55,11 @@ def _build_csv_fields(card_data: dict) -> tuple[str, str]:
     """Build CSV front/back fields."""
     glosses = ", ".join(card_data.get("english_glosses", []))
     gloss_part = f"({glosses})" if glosses else ""
-    fragment = card_data.get("source_fragment", card_data.get("source_sentence", ""))
+    sentence = card_data.get("source_sentence", "")
     lemma = card_data.get("lemma", "")
-    translation = card_data.get("source_fragment_translation", "")
+    translation = card_data.get("source_sentence_translation", "")
 
-    front = f"{gloss_part} {fragment} ({lemma})".strip()
+    front = f"{gloss_part} {sentence} ({lemma})".strip()
     back = translation.strip() if translation else ""
     return front, back
 
@@ -139,15 +140,18 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
         level_distribution[level] = level_distribution.get(level, 0) + 1
 
     # Stage 9: Format output with study lines
+    translator = SentenceTranslator()
     cards = []
     for rc in ranked:
         fragment = rc.source_fragment or rc.first_sentence
+        sentence = rc.first_sentence
+        translation = translator.translate(sentence)
 
         card_data = {
             "lemma": rc.lemma,
             "english_glosses": rc.english_glosses or [],
-            "source_fragment": fragment,
-            "source_fragment_translation": None,  # Not available without translation service
+            "source_sentence": sentence,
+            "source_sentence_translation": translation,
         }
 
         study_line = _build_study_line(card_data)
@@ -159,10 +163,10 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
             pos=rc.pos,
             english_glosses=rc.english_glosses or [],
             korean_definition=rc.korean_definition,
-            source_sentence=rc.first_sentence,
-            source_sentence_translation=None,
+            source_sentence=sentence,
+            source_sentence_translation=translation,
             source_fragment=fragment,
-            source_fragment_translation=None,
+            source_fragment_translation=translation,
             study_line=study_line,
             csv_front=csv_front,
             csv_back=csv_back,
