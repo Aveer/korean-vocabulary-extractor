@@ -24,6 +24,11 @@ BASE_DIR = Path(os.getcwd())
 BACKEND_DIR = BASE_DIR / "backend"
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
+print(f"=== Spec debug ===")
+print(f"BASE_DIR:    {BASE_DIR}")
+print(f"BACKEND_DIR: {BACKEND_DIR} (exists: {BACKEND_DIR.exists()})")
+print(f"FRONTEND:    {FRONTEND_DIST} (exists: {FRONTEND_DIST.exists()})")
+
 # Data files to include
 datas = []
 
@@ -31,10 +36,16 @@ datas = []
 bundled_dict = BACKEND_DIR / "dictionary" / "bundled_dict.json"
 if bundled_dict.exists():
     datas.append((str(bundled_dict), "backend/dictionary/"))
+    print(f"  + bundled_dict: {bundled_dict}")
+else:
+    print(f"  ! bundled_dict NOT FOUND: {bundled_dict}")
 
 # 2. Frontend build output
 if FRONTEND_DIST.exists():
     datas.append((str(FRONTEND_DIST), "frontend_dist/"))
+    print(f"  + frontend_dist: {FRONTEND_DIST}")
+else:
+    print(f"  ! frontend_dist NOT FOUND: {FRONTEND_DIST}")
 
 # 3. kiwipiepy model data — required for morphological analysis
 #    kiwipiepy stores models in the site-packages directory
@@ -49,9 +60,13 @@ if kiwi_model_dirs:
     model_dir = kiwi_model_dirs[0]
     for item in model_dir.iterdir():
         datas.append((str(item), "kiwipiepy/model/"))
+    print(f"  + kiwipiepy model: {model_dir} ({len(list(model_dir.iterdir()))} items)")
 else:
     print("WARNING: kiwipiepy model directory not found. "
           "The app may not work without it. Install kiwipiepy first.")
+
+print(f"Total datas: {len(datas)}")
+print(f"=== End spec debug ===")
 
 # Hidden imports — modules imported dynamically
 hiddenimports = [
