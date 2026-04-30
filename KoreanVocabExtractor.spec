@@ -116,8 +116,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=False,
+    a.binaries,
+    a.datas,
     name="KoreanVocabExtractor",
     debug=False,
     bootloader_ignore_signals=False,
