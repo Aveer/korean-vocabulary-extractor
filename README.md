@@ -223,7 +223,8 @@ unless stated otherwise.
 
 The bundled offline dictionary is derived from Kengdic and is **not** covered
 by the project's MIT License. This repository distributes that derived data
-under the Mozilla Public License 2.0 option offered by Kengdic.
+under the Mozilla Public License 2.0 option offered by Kengdic. Packaged builds
+also contain third-party dependencies under their own licenses.
 
 See [LICENSE](LICENSE), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and
-[LICENSES/MPL-2.0.txt](LICENSES/MPL-2.0.txt) for details.
+the [LICENSES](LICENSES/) directory for details.
