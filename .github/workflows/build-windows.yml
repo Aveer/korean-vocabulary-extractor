@@ -59,8 +59,9 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          # Find kiwipiepy model path
-          $kiwiModel = python -c "import kiwipiepy, os; print(os.path.join(os.path.dirname(kiwipiepy.__file__), 'model'))"
+          # Find kiwipiepy model path — write to temp file to avoid PS escape issues
+          python -c "import kiwipiepy, pathlib; p=pathlib.Path(kiwipiepy.__path__[0])/'model'; open('kiwi_model_path.txt','w').write(str(p))"
+          $kiwiModel = Get-Content kiwi_model_path.txt
           Write-Host "Kiwi model: $kiwiModel"
 
           pyinstaller --clean --onedir `
