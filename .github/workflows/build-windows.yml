@@ -57,12 +57,21 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pyinstaller
 
+      - name: Download kiwipiepy model
+        run: |
+          python -c "import kiwipiepy; m = kiwipiepy.Kiwi(); print('Kiwi model loaded:', m)"
+
       - name: Build with PyInstaller
         run: |
-          # Find kiwipiepy model path — write to temp file to avoid PS escape issues
-          python -c "import kiwipiepy, pathlib; p=pathlib.Path(kiwipiepy.__path__[0])/'model'; open('kiwi_model_path.txt','w').write(str(p))"
+          # Find kiwipiepy model path — use forward slashes via as_posix()
+          python -c "import kiwipiepy, pathlib; p=pathlib.Path(kiwipiepy.__path__[0])/'model'; open('kiwi_model_path.txt','w').write(p.as_posix())"
           $kiwiModel = Get-Content kiwi_model_path.txt
-          Write-Host "Kiwi model: $kiwiModel"
+          Write-Host "Kiwi model path: $kiwiModel"
+          Write-Host "Kiwi model exists: $(Test-Path $kiwiModel)"
+          if (Test-Path $kiwiModel) {
+            Write-Host "Kiwi model contents:"
+            Get-ChildItem $kiwiModel | Format-Table Name, Length
+          }
 
           pyinstaller --clean --onedir `
             --name KoreanVocabExtractor `
