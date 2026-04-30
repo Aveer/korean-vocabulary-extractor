@@ -17,11 +17,9 @@ import os
 import sys
 from pathlib import Path
 
-# Determine base directory
-if getattr(sys, "frozen", False):
-    BASE_DIR = Path(sys.executable).parent
-else:
-    BASE_DIR = Path(__file__).parent
+# Determine base directory — spec runs from repo root via `pyinstaller KoreanVocabExtractor.spec`
+# __file__ is NOT defined inside PyInstaller's spec execution context
+BASE_DIR = Path(os.getcwd())
 
 BACKEND_DIR = BASE_DIR / "backend"
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
