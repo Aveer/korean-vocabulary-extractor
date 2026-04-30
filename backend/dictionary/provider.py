@@ -11,8 +11,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
-# Config file for dictionary settings
-CONFIG_PATH = Path(__file__).parent.parent / "cache_data" / "dictionary_config.json"
+from config_paths import get_config_path
+
+# Config file for dictionary settings — uses APPDATA on Windows, project-relative in dev
+CONFIG_PATH = get_config_path()
 
 
 class DictionaryProvider(ABC):

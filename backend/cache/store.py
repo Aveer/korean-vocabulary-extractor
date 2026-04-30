@@ -9,9 +9,9 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from config_paths import get_cache_file
 
-CACHE_DIR = Path(__file__).parent.parent / "cache_data"
-CACHE_FILE = CACHE_DIR / "dictionary_cache.json"
+CACHE_FILE = get_cache_file()
 MAX_CACHE_SIZE = 10000  # Max entries
 
 
