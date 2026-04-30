@@ -68,7 +68,38 @@ jobs:
           python -c "import kiwipiepy; m = kiwipiepy.Kiwi(); print('Kiwi model OK:', m)"
 
       - name: Build with PyInstaller
-        run: pyinstaller KoreanVocabExtractor.spec --clean
+        run: |
+          pyinstaller --clean --onedir `
+            --name KoreanVocabExtractor `
+            --add-data "backend/dictionary/bundled_dict.json;backend/dictionary" `
+            --add-data "frontend/dist;frontend_dist" `
+            --hidden-import api `
+            --hidden-import api.extract_vocab `
+            --hidden-import api.models `
+            --hidden-import cache `
+            --hidden-import cache.store `
+            --hidden-import config_paths `
+            --hidden-import dictionary `
+            --hidden-import dictionary.bundled `
+            --hidden-import dictionary.nikl `
+            --hidden-import dictionary.provider `
+            --hidden-import nlp `
+            --hidden-import nlp.pipeline `
+            --hidden-import nlp.ranker `
+            --hidden-import nlp.lemmatizer `
+            --hidden-import nlp.filtering `
+            --hidden-import nlp.tokenizer `
+            --hidden-import nlp.sentencizer `
+            --hidden-import nlp.translator `
+            --hidden-import deep_translator `
+            --hidden-import deep_translator.google_translator `
+            --exclude pytest `
+            --exclude setuptools `
+            --exclude pip `
+            --exclude tkinter `
+            --exclude unittest `
+            --distpath dist `
+            backend/run_app.py
 
       - name: Create distribution ZIP
         run: |
