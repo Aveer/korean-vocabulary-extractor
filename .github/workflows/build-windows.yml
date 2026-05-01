@@ -80,7 +80,7 @@ jobs:
                       print(f'Found tar in {root}: {found}')
           "
 
-       - name: Build with PyInstaller
+      - name: Build with PyInstaller
         run: |
           # Write build script to avoid PowerShell escaping issues
           python -c "
