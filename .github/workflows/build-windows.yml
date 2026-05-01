@@ -82,43 +82,50 @@ jobs:
 
        - name: Build with PyInstaller
         run: |
-          # Build --add-data args dynamically
-          $addData = @()
-          $addData += "--add-data"
-          $addData += "backend/dictionary/bundled_dict.json;backend/dictionary"
-          $addData += "--add-data"
-          $addData += "frontend/dist;frontend_dist"
+          # Write build script to avoid PowerShell escaping issues
+          python -c "
+          import kiwipiepy, pathlib, textwrap
+          script = textwrap.dedent('''
+              import subprocess, sys, os
+              from pathlib import Path
 
-          # Find kiwipiepy model
-          python -c "import kiwipiepy, pathlib; p=pathlib.Path(kiwipiepy.__path__[0])/'model'; open('kiwi_model_path.txt','w').write(p.as_posix())"
-          $kiwiModel = Get-Content kiwi_model_path.txt
-          Write-Host "Kiwi model path: $kiwiModel"
-          Write-Host "Kiwi model exists: $(Test-Path $kiwiModel)"
-          if (Test-Path $kiwiModel) {
-            Get-ChildItem $kiwiModel | Format-Table Name, Length
-            $addData += "--add-data"
-            $addData += "$kiwiModel;kiwipiepy/model"
-          } else {
-            Write-Host "WARNING: kiwipiepy model not found — will download at first use"
-          }
+              hidden = [
+                  'api', 'api.extract_vocab', 'api.models',
+                  'cache', 'cache.store', 'config_paths',
+                  'dictionary', 'dictionary.bundled', 'dictionary.nikl', 'dictionary.provider',
+                  'nlp', 'nlp.pipeline', 'nlp.ranker', 'nlp.lemmatizer',
+                  'nlp.filtering', 'nlp.tokenizer', 'nlp.sentencizer', 'nlp.translator',
+                  'deep_translator', 'deep_translator.google_translator',
+              ]
+              excludes = ['pytest', 'setuptools', 'pip', 'tkinter', 'unittest']
 
-          # Build hidden imports
-          $hiddenImports = @()
-          "api", "api.extract_vocab", "api.models", "cache", "cache.store",
-          "config_paths", "dictionary", "dictionary.bundled", "dictionary.nikl",
-          "dictionary.provider", "nlp", "nlp.pipeline", "nlp.ranker",
-          "nlp.lemmatizer", "nlp.filtering", "nlp.tokenizer", "nlp.sentencizer",
-          "nlp.translator", "deep_translator", "deep_translator.google_translator" |
-            ForEach-Object { $hiddenImports += "--hidden-import"; $hiddenImports += $_ }
+              cmd = [sys.executable, '-m', 'PyInstaller', '--clean', '--onedir',
+                     '--name', 'KoreanVocabExtractor', '--distpath', 'dist',
+                     '--add-data', 'backend/dictionary/bundled_dict.json;backend/dictionary',
+                     '--add-data', 'frontend/dist;frontend_dist']
 
-          # Run PyInstaller
-          pyinstaller --clean --onedir --name KoreanVocabExtractor `
-            --distpath dist `
-            $addData `
-            $hiddenImports `
-            --exclude pytest --exclude setuptools --exclude pip `
-            --exclude tkinter --exclude unittest `
-            backend/run_app.py
+              # kiwipiepy model
+              kiwi_model = Path(kiwipiepy.__path__[0]) / 'model'
+              if kiwi_model.exists():
+                  print(f'Kiwi model found: {kiwi_model}')
+                  cmd += ['--add-data', f'{kiwi_model};kiwipiepy/model']
+              else:
+                  print(f'Kiwi model not found, will download at first use')
+
+              for h in hidden:
+                  cmd += ['--hidden-import', h]
+              for e in excludes:
+                  cmd += ['--exclude', e]
+              cmd.append('backend/run_app.py')
+
+              print('Running:', ' '.join(cmd))
+              result = subprocess.run(cmd)
+              sys.exit(result.returncode)
+          ''')
+          with open('build_app.py', 'w') as f:
+              f.write(script)
+          "
+          python build_app.py
 
       - name: Create distribution ZIP
         run: |
