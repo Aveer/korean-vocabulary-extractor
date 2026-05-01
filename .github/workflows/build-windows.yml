@@ -59,26 +59,7 @@ jobs:
 
       - name: Download kiwipiepy model
         run: |
-          python -c "
-          import kiwipiepy, pathlib, glob, os
-          m = kiwipiepy.Kiwi()
-          print('Kiwi loaded:', m)
-          # Find model files - check common locations
-          candidates = [
-              pathlib.Path(kiwipiepy.__path__[0]) / 'model',
-              pathlib.Path.home() / '.kiwipiepy' / 'model',
-              pathlib.Path.home() / '.kiwipiepy',
-          ]
-          # Also search for recently created model files
-          for p in candidates:
-              print(f'{p}: exists={p.exists()}, contents={list(p.iterdir()) if p.exists() else \"N/A\"}')
-          # Search for kiwi model files in temp/appdata
-          for root in [os.environ.get('TEMP', ''), os.environ.get('LOCALAPPDATA', '')]:
-              if root:
-                  found = glob.glob(os.path.join(root, '**', '*.tar.gz'), recursive=True)
-                  if found:
-                      print(f'Found tar in {root}: {found}')
-          "
+          python -c "import kiwipiepy; m=kiwipiepy.Kiwi(); print('Kiwi loaded:', m)"
 
       - name: Build with PyInstaller
         run: |
