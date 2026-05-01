@@ -68,6 +68,7 @@ jobs:
           import kiwipiepy, pathlib, textwrap
           script = textwrap.dedent('''
               import subprocess, sys, os
+              import kiwipiepy
               from pathlib import Path
 
               hidden = [
