@@ -9,15 +9,18 @@ from fastapi.testclient import TestClient
 
 
 def _make_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("KVE_DATA_DIR", str(tmp_path / "KoreanVocabExtractor"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     config_paths = importlib.import_module("config_paths")
     study_db = importlib.import_module("study.db")
+    study_service = importlib.import_module("study.service")
     extract_vocab = importlib.import_module("api.extract_vocab")
     study_api = importlib.import_module("api.study")
     main_mod = importlib.import_module("main")
 
     importlib.reload(config_paths)
     importlib.reload(study_db)
+    importlib.reload(study_service)
     importlib.reload(study_api)
     importlib.reload(extract_vocab)
     importlib.reload(main_mod)
