@@ -1,18 +1,19 @@
 :root,
 [data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f5;
-  --bg-card: #fafbfc;
-  --bg-input: #ffffff;
-  --bg-hover: #f0f2f5;
-  --text-primary: #1a1a2e;
-  --text-secondary: #555555;
-  --text-muted: #888888;
-  --border-color: #e0e0e0;
-  --border-subtle: #e8ecef;
-  --accent: #4a90d9;
-  --accent-hover: #357abd;
-  --accent-disabled: #a0c4e8;
+  --bg-primary: #fff8ed;
+  --bg-secondary: #f5e8d3;
+  --bg-card: #fffdf7;
+  --bg-input: #fffaf0;
+  --bg-hover: #efe0c5;
+  --text-primary: #231913;
+  --text-secondary: #6d5544;
+  --text-muted: #9f826a;
+  --border-color: #dfc8a7;
+  --border-subtle: #ead9bf;
+  --accent: #d64b2a;
+  --accent-hover: #b9361d;
+  --accent-disabled: #d99a88;
+  --accent-contrast: #fffdf7;
   --accent-focus: rgba(74, 144, 217, 0.15);
   --error-bg: #fff0f0;
   --error-text: #c0392b;
@@ -27,8 +28,13 @@
   --badge-difficulty-bg: #e8f5e9;
   --badge-difficulty-text: #388e3c;
   --shadow-card: rgba(0, 0, 0, 0.06);
+  --shadow-hero: rgba(94, 50, 19, 0.14);
+  --gold: #f2a922;
+  --gold-soft: #fff2c2;
+  --mark-bg: #ffe08a;
+  --mark-text: #231913;
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
   line-height: 1.5;
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -39,19 +45,20 @@
 }
 
 [data-theme="dark"] {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-card: #0f3460;
-  --bg-input: #16213e;
-  --bg-hover: #1f2b47;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --text-muted: #707070;
-  --border-color: #2a2a4a;
-  --border-subtle: #2a2a4a;
-  --accent: #4a90d9;
-  --accent-hover: #3a7bc8;
-  --accent-disabled: #2a4a6a;
+  --bg-primary: #130f1c;
+  --bg-secondary: #211936;
+  --bg-card: #1a1530;
+  --bg-input: #171225;
+  --bg-hover: #2c2244;
+  --text-primary: #fff7e8;
+  --text-secondary: #d4c3aa;
+  --text-muted: #9d8c78;
+  --border-color: #3d314f;
+  --border-subtle: #322843;
+  --accent: #ff7a45;
+  --accent-hover: #ff956b;
+  --accent-disabled: #74442e;
+  --accent-contrast: #160f0a;
   --accent-focus: rgba(74, 144, 217, 0.25);
   --error-bg: #3a1a1a;
   --error-text: #e74c3c;
@@ -66,6 +73,11 @@
   --badge-difficulty-bg: #1a3a2a;
   --badge-difficulty-text: #81c784;
   --shadow-card: rgba(0, 0, 0, 0.3);
+  --shadow-hero: rgba(0, 0, 0, 0.42);
+  --gold: #ffd166;
+  --gold-soft: #4b351f;
+  --mark-bg: #5a3f1f;
+  --mark-text: #fff2cf;
 }
 
 * {
@@ -76,10 +88,14 @@
 
 body {
   min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, var(--gold-soft), transparent 28rem),
+    radial-gradient(circle at bottom right, var(--bg-secondary), transparent 32rem),
+    var(--bg-primary);
 }
 
 #root {
-  max-width: 800px;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 2rem 1rem;
 }

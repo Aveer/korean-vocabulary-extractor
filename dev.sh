@@ -14,16 +14,20 @@ BACKEND_PID=""
 FRONTEND_PID=""
 
 cleanup() {
+  local status="${1:-$?}"
+  trap - SIGINT SIGTERM EXIT
   echo ""
   echo "Shutting down..."
   [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null && echo "  Backend (PID $BACKEND_PID) stopped."
   [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null && echo "  Frontend (PID $FRONTEND_PID) stopped."
-  wait 2>/dev/null
+  wait 2>/dev/null || true
   echo "Done."
-  exit 0
+  exit "$status"
 }
 
-trap cleanup SIGINT SIGTERM EXIT
+trap 'cleanup $?' EXIT
+trap 'cleanup 130' SIGINT
+trap 'cleanup 143' SIGTERM
 
 echo "Starting Korean Vocab Extractor..."
 echo ""
@@ -68,4 +72,4 @@ echo "Press Ctrl+C to stop both servers."
 echo ""
 
 # Wait for foreground (frontend) process; cleanup handles the rest
-wait "$FRONTEND_PID" 2>/dev/null || true
+wait "$FRONTEND_PID" 2>/dev/null

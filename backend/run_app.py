@@ -1,6 +1,6 @@
 """Korean Vocab Extractor — Packaged Application Entrypoint.
 
-This module serves as the entry point for the packaged Windows application.
+This module serves as the entry point for the packaged desktop application.
 It starts the FastAPI backend, serves the built frontend as static files,
 and opens the default browser automatically.
 
@@ -9,8 +9,10 @@ Usage (development):
 
 Usage (packaged):
     KoreanVocabExtractor.exe
+    KoreanVocabExtractor.exe --no-browser --port 8765
 """
 
+import argparse
 import os
 import socket
 import sys
@@ -18,6 +20,8 @@ import threading
 import traceback
 import webbrowser
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Resolve paths and fix sys.path for PyInstaller
 if getattr(sys, "frozen", False):
@@ -27,18 +31,40 @@ if getattr(sys, "frozen", False):
     if str(BASE_DIR) not in sys.path:
         sys.path.insert(0, str(BASE_DIR))
     # _MEIPASS: temp dir where PyInstaller extracts one-file archives (not needed for onedir)
-    if hasattr(sys, "_MEIPASS"):
-        if str(sys._MEIPASS) not in sys.path:
-            sys.path.insert(0, sys._MEIPASS)
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass and str(meipass) not in sys.path:
+        sys.path.insert(0, meipass)
 else:
     # Running as script in development
     BASE_DIR = Path(__file__).parent
     if str(BASE_DIR) not in sys.path:
         sys.path.insert(0, str(BASE_DIR))
 
-FRONTEND_DIST = BASE_DIR / "frontend_dist"
+ENV_PATH = BASE_DIR / ".env"
+load_dotenv(ENV_PATH, override=False)
+root_env = BASE_DIR.parent / ".env"
+if root_env != ENV_PATH and root_env.exists():
+    load_dotenv(root_env, override=False)
+
+def _find_frontend_dist() -> Path:
+    meipass = Path(getattr(sys, "_MEIPASS", BASE_DIR))
+    candidates = [
+        BASE_DIR / "frontend_dist",
+        BASE_DIR.parent / "frontend" / "dist",
+        BASE_DIR.parent / "frontend_dist",
+        meipass / "frontend_dist",
+        meipass / "_internal" / "frontend_dist",
+        meipass / "backend" / "frontend_dist",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+FRONTEND_DIST = _find_frontend_dist()
 
 
 def _find_free_port(start_port: int = DEFAULT_PORT, max_attempts: int = 10) -> int:
@@ -53,7 +79,7 @@ def _find_free_port(start_port: int = DEFAULT_PORT, max_attempts: int = 10) -> i
     raise OSError(f"No free port found in range {start_port}-{start_port + max_attempts}")
 
 
-def _build_app():
+def _build_app(port: int = DEFAULT_PORT):
     """Build the FastAPI application with static file serving."""
     import uvicorn
     from fastapi import FastAPI
@@ -62,6 +88,7 @@ def _build_app():
     from fastapi.staticfiles import StaticFiles
 
     from api.extract_vocab import router as extract_router
+    from api.study import router as study_router
     from config_paths import get_config_path, get_cache_file
 
     print(f"Config: {get_config_path()}")
@@ -88,6 +115,7 @@ def _build_app():
 
     # Include API routes
     app.include_router(extract_router, prefix="/api")
+    app.include_router(study_router, prefix="/api/study")
 
     # Serve frontend static files
     if FRONTEND_DIST.exists():
@@ -102,7 +130,7 @@ def _build_app():
                 status_code=503,
                 content={
                     "error": "Frontend not built.",
-                    "health": "http://localhost:{port}/api/health".format(port=DEFAULT_PORT),
+                    "health": "http://localhost:{port}/api/health".format(port=port),
                 },
             )
 
@@ -114,7 +142,7 @@ def run(port: int = DEFAULT_PORT, open_browser: bool = True):
     actual_port = _find_free_port(port)
     url = f"http://{HOST}:{actual_port}"
 
-    app = _build_app()
+    app = _build_app(actual_port)
 
     print("=" * 50)
     print("  Korean Vocab Extractor")
@@ -143,18 +171,43 @@ def run(port: int = DEFAULT_PORT, open_browser: bool = True):
     )
 
 
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI options used by package smoke tests and power users."""
+    parser = argparse.ArgumentParser(description="Run Korean Vocab Extractor")
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="start the local server without opening a browser window",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"preferred local port; the app uses the next free port if busy (default: {DEFAULT_PORT})",
+    )
+    return parser.parse_args(argv)
+
+
+def _pause_on_error() -> None:
+    """Keep double-clicked console windows open, but never block CI/non-interactive runs."""
+    if not getattr(sys, "frozen", False) or not sys.stdin or not sys.stdin.isatty():
+        return
+    print("\nPress Enter to exit...")
+    input()
+
+
 if __name__ == "__main__":
     try:
-        run()
+        args = _parse_args()
+        run(port=args.port, open_browser=not args.no_browser)
     except Exception:
         print("\n" + "=" * 50)
         print("  ERROR: Failed to start")
         print("=" * 50)
         traceback.print_exc()
         print("=" * 50)
-        print("\nPress Enter to exit...")
         try:
-            input()
+            _pause_on_error()
         except EOFError:
             pass
         sys.exit(1)

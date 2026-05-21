@@ -7,6 +7,7 @@ API endpoint:
 https://api.korean.go.kr/openApi/wordServlet.en
 """
 
+import logging
 import os
 import time
 from typing import Optional
@@ -15,6 +16,9 @@ import httpx
 
 from dictionary.provider import DictionaryProvider
 from cache.store import create_cache
+
+
+logger = logging.getLogger(__name__)
 
 
 class NIKLProvider(DictionaryProvider):
@@ -61,7 +65,12 @@ class NIKLProvider(DictionaryProvider):
             })
 
             return result
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "NIKL dictionary lookup failed for lemma=%s (error=%s)",
+                lemma,
+                type(exc).__name__,
+            )
             # Degraded mode: return empty results
             return [], None, None
 

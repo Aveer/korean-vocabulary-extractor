@@ -7,20 +7,48 @@ on:
         description: "Version tag (e.g. 0.1.0)"
         required: false
         default: "dev"
+  pull_request:
+    branches:
+      - "**"
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
 
 permissions:
   contents: read
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
   build-windows:
     name: Build Windows Portable App
     runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: master
+
+      - name: Set artifact metadata
+        shell: pwsh
+        run: |
+          $version = ""
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ github.event.inputs.version }}"
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "${{ github.ref_name }}"
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "run-${{ github.run_number }}"
+          }
+          $safeVersion = $version -replace '[^A-Za-z0-9._-]', '-'
+          "ARTIFACT_NAME=KoreanVocabExtractor-Windows-$safeVersion" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,102 +60,72 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: frontend
-
-      - name: Verify frontend build
-        run: |
-          if (-not (Test-Path "frontend/dist/index.html")) {
-            Write-Error "Frontend build failed — index.html not found"
-            exit 1
-          }
-          $count = (Get-ChildItem -Path "frontend/dist" -Recurse -File).Count
-          Write-Host "Frontend built: $count files"
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-          pip install pyinstaller
+          python -m pip install -r backend/requirements.txt
+          python -m pip install pytest
 
-      - name: Download kiwipiepy model
+      - name: Run backend tests
+        run: python -m pytest tests/ -v
+
+      - name: Validate packaging scripts
+        shell: pwsh
         run: |
-          python -c "import kiwipiepy; m=kiwipiepy.Kiwi(); print('Kiwi loaded:', m)"
+          python -m py_compile backend/config_paths.py scripts/build_package.py backend/run_app.py backend/api/study.py backend/study/db.py backend/study/service.py backend/api/models.py backend/api/extract_vocab.py backend/main.py
+          python -c "from pathlib import Path; compile(Path('KoreanVocabExtractor.spec').read_text(encoding='utf-8'), 'KoreanVocabExtractor.spec', 'exec'); print('spec syntax ok')"
 
-      - name: Build with PyInstaller
+      - name: Build and smoke-test portable executable
+        run: python scripts/build_package.py --clean --skip-python-install
+
+      - name: Stage user-facing artifact
+        shell: pwsh
         run: |
-          # Write build script to avoid PowerShell escaping issues
-          python -c "
-          import kiwipiepy, pathlib, textwrap
-          script = textwrap.dedent('''
-              import subprocess, sys, os
-              import kiwipiepy
-              from pathlib import Path
+          $exe = "dist\KoreanVocabExtractor\KoreanVocabExtractor.exe"
+          $zip = "dist\KoreanVocabExtractor.zip"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Executable not found at $exe"
+            exit 1
+          }
+          if (-not (Test-Path $zip)) {
+            Write-Error "ZIP not found at $zip"
+            exit 1
+          }
+          $zipSize = [math]::Round((Get-Item $zip).Length / 1MB, 2)
+          Write-Host "Verified $exe"
+          Write-Host "Verified $zip ($zipSize MB)"
 
-              hidden = [
-                  'api', 'api.extract_vocab', 'api.models',
-                  'cache', 'cache.store', 'config_paths',
-                  'dictionary', 'dictionary.bundled', 'dictionary.nikl', 'dictionary.provider',
-                  'nlp', 'nlp.pipeline', 'nlp.ranker', 'nlp.lemmatizer',
-                  'nlp.filtering', 'nlp.tokenizer', 'nlp.sentencizer', 'nlp.translator',
-                  'deep_translator', 'deep_translator.google_translator',
-              ]
-              excludes = ['pytest', 'setuptools', 'pip', 'tkinter', 'unittest']
+          $artifactDir = "dist\artifact"
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+          Copy-Item -Recurse -Force "dist\KoreanVocabExtractor" "$artifactDir\KoreanVocabExtractor"
+          Copy-Item -Force $zip "$artifactDir\KoreanVocabExtractor.zip"
+          @"
+          Korean Vocab Extractor Windows portable app
 
-              cmd = [sys.executable, '-m', 'PyInstaller', '--clean', '--onedir',
-                     '--name', 'KoreanVocabExtractor', '--distpath', 'dist',
-                     '--add-data', 'backend/dictionary/bundled_dict.json;backend/dictionary',
-                     '--add-data', 'frontend/dist;frontend_dist']
+          To run after downloading from GitHub Actions:
+          1. Extract the GitHub artifact ZIP.
+          2. Open the KoreanVocabExtractor folder.
+          3. Double-click KoreanVocabExtractor.exe.
 
-              # kiwipiepy model
-              kiwi_model = Path(kiwipiepy.__path__[0]) / 'model'
-              if kiwi_model.exists():
-                  print(f'Kiwi model found: {kiwi_model}')
-                  cmd += ['--add-data', f'{kiwi_model};kiwipiepy/model']
-              else:
-                  print(f'Kiwi model not found, will download at first use')
+          No Python or Node.js installation is required. The included
+          KoreanVocabExtractor.zip contains the same portable app folder for
+          release uploads or re-sharing.
+          "@ | Set-Content -Encoding UTF8 "$artifactDir\README-WINDOWS.txt"
 
-              for h in hidden:
-                  cmd += ['--hidden-import', h]
-              for e in excludes:
-                  cmd += ['--exclude', e]
-              cmd.append('backend/run_app.py')
-
-              print('Running:', ' '.join(cmd))
-              result = subprocess.run(cmd)
-              sys.exit(result.returncode)
-          ''')
-          with open('build_app.py', 'w') as f:
-              f.write(script)
-          "
-          python build_app.py
-
-      - name: Create distribution ZIP
-        run: |
-          Write-Host "=== dist/ contents ==="
-          Get-ChildItem -Path dist | Format-Table Mode, Length, Name
-          $appDir = "dist\KoreanVocabExtractor"
-          $zipFile = "dist\KoreanVocabExtractor.zip"
-          if (Test-Path $appDir) {
-            Compress-Archive -Path "$appDir\*" -DestinationPath $zipFile -Force
-            $size = [math]::Round((Get-Item $zipFile).Length / 1MB, 2)
-            Write-Host "ZIP: $zipFile ($size MB)"
-          } else {
-            Write-Error "App directory not found at $appDir"
+          if (-not (Test-Path "$artifactDir\KoreanVocabExtractor\KoreanVocabExtractor.exe")) {
+            Write-Error "Runnable artifact folder was not staged correctly."
             exit 1
           }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KoreanVocabExtractor-Windows
-          path: dist/KoreanVocabExtractor.zip
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist/artifact/**
           retention-days: 30
           if-no-files-found: error
+          compression-level: 0
