@@ -1,7 +1,11 @@
 """Google Translate sentence translator with caching."""
 
+import logging
+
 from deep_translator import GoogleTranslator
-import hashlib
+
+
+logger = logging.getLogger(__name__)
 
 
 class SentenceTranslator:
@@ -37,6 +41,11 @@ class SentenceTranslator:
                     del self._cache[oldest_key]
                 self._cache[cache_key] = result
             return result
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Sentence translation failed for sentence_length=%d (error=%s)",
+                len(cache_key),
+                type(exc).__name__,
+            )
             # Fail gracefully - return None so study line still works without translation
             return None

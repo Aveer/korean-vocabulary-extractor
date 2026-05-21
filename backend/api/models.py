@@ -25,16 +25,16 @@ class DictionaryConfigResponse(BaseModel):
 
     provider: str = Field(..., description="Current provider: 'bundled' or 'nikl'")
     api_key_set: bool = Field(
-        ..., description="Whether an API key is configured for NIKL"
+        ..., alias="apiKeySet", description="Whether an API key is configured for NIKL"
     )
     bundled_available: bool = Field(
-        ..., description="Whether bundled dictionary is available"
+        ..., alias="bundledAvailable", description="Whether bundled dictionary is available"
     )
     bundled_entry_count: int = Field(
-        ..., description="Number of entries in bundled dictionary"
+        ..., alias="bundledEntryCount", description="Number of entries in bundled dictionary"
     )
     bundled_source: str = Field(
-        ..., description="Source of bundled dictionary data"
+        ..., alias="bundledSource", description="Source of bundled dictionary data"
     )
 
 
@@ -54,6 +54,8 @@ class ExtractVocabRequest(BaseModel):
         default=True, alias="includeSentenceTranslation",
         description="Include English translation of source sentences",
     )
+    exclude_known: bool = Field(default=True, alias="excludeKnown", description="Exclude known lemmas")
+    exclude_ignored: bool = Field(default=True, alias="excludeIgnored", description="Exclude ignored lemmas")
 
 
 class VocabCard(BaseModel):
@@ -115,6 +117,8 @@ class VocabCard(BaseModel):
         description="How many times this lemma appears in the text",
     )
     reason: str = Field(..., description="Why this word was selected")
+    study_status: Optional[Literal["new", "known", "ignored"]] = Field(default=None, alias="studyStatus")
+    saved_card_id: Optional[int] = Field(default=None, alias="savedCardId")
 
 
 class ExtractMeta(BaseModel):
@@ -154,3 +158,94 @@ class ExtractVocabResponse(BaseModel):
 
     cards: list[VocabCard] = Field(..., description="Extracted vocabulary cards")
     meta: ExtractMeta = Field(..., description="Extraction metadata")
+
+
+class StudyCardRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    lemma: str
+    source_fragment: str = Field(alias="sourceFragment")
+    source_sentence: str = Field(alias="sourceSentence")
+    display: Optional[str] = None
+    pos: Optional[str] = None
+    level: Optional[str] = None
+    english_glosses: list[str] = Field(default_factory=list, alias="englishGlosses")
+    korean_definition: Optional[str] = Field(default=None, alias="koreanDefinition")
+    source_fragment_translation: Optional[str] = Field(default=None, alias="sourceFragmentTranslation")
+    source_sentence_translation: Optional[str] = Field(default=None, alias="sourceSentenceTranslation")
+    study_line: Optional[str] = Field(default=None, alias="studyLine")
+    csv_front: Optional[str] = Field(default=None, alias="csvFront")
+    csv_back: Optional[str] = Field(default=None, alias="csvBack")
+    due_at: Optional[str] = Field(default=None, alias="dueAt")
+    difficulty_score: Optional[float] = Field(default=None, alias="difficultyScore")
+    frequency_in_text: Optional[int] = Field(default=None, alias="frequencyInText")
+    reason: Optional[str] = None
+
+
+class StudyCardResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: int
+    lemma: str
+    source_fragment: str = Field(alias="sourceFragment")
+    source_sentence: str = Field(alias="sourceSentence")
+    display: str
+    pos: str
+    level: Optional[str] = None
+    english_glosses: list[str] = Field(default_factory=list, alias="englishGlosses")
+    korean_definition: Optional[str] = Field(default=None, alias="koreanDefinition")
+    source_fragment_translation: Optional[str] = Field(default=None, alias="sourceFragmentTranslation")
+    source_sentence_translation: Optional[str] = Field(default=None, alias="sourceSentenceTranslation")
+    study_line: str = Field(alias="studyLine")
+    csv_front: str = Field(alias="csvFront")
+    csv_back: str = Field(alias="csvBack")
+    due_at: str = Field(alias="dueAt")
+    interval_days: int = Field(alias="intervalDays")
+    ease: float
+    difficulty_score: float = Field(alias="difficultyScore")
+    frequency_in_text: int = Field(alias="frequencyInText")
+    reason: str
+    repetitions: int
+    lapses: int
+    suspended: bool
+    study_status: Optional[str] = Field(default=None, alias="studyStatus")
+
+
+class StudyCardsResponse(BaseModel):
+    cards: list[StudyCardResponse]
+    total: int
+
+
+class StudyLemmaStatusResponse(BaseModel):
+    lemma: Optional[str] = None
+    status: Literal["new", "known", "ignored"]
+
+
+class StudyLemmaStatusRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    status: Literal["new", "known", "ignored"]
+
+
+class StudyDueResponse(BaseModel):
+    dueCount: int
+    cards: list[StudyCardResponse]
+
+
+class StudyReviewRequest(BaseModel):
+    rating: Literal["again", "hard", "good", "easy"]
+
+
+class StudyReviewResponse(BaseModel):
+    nextDueAt: str
+    intervalDays: int
+    ease: float
+    xpGained: int
+
+
+class StudyStatsResponse(BaseModel):
+    todayReviews: int
+    dueCount: int
+    totalCards: int
+    knownLemmas: int
+    ignoredLemmas: int
+    currentStreakDays: int
+    xp: int
+    level: int

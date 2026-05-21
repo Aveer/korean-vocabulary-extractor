@@ -64,7 +64,7 @@ export default function ExportActions({ cards }: Props) {
   return (
     <div className="export-actions">
       <button className="export-btn" onClick={copyAll}>
-        Copy all
+        Copy quest lines
       </button>
       <button className="export-btn" onClick={exportCSV}>
         Export CSV

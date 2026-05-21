@@ -1,10 +1,12 @@
+import type React from "react";
 import { VocabCard } from "../types";
 
 interface Props {
   card: VocabCard;
+  actions?: React.ReactNode;
 }
 
-export default function VocabCardComponent({ card }: Props) {
+export default function VocabCardComponent({ card, actions }: Props) {
   return (
     <div className="card">
       {/* Primary: compact study line */}
@@ -20,6 +22,7 @@ export default function VocabCardComponent({ card }: Props) {
       </div>
 
       {card.reason && <div className="card-reason">{card.reason}</div>}
+      {actions && <div className="card-actions">{actions}</div>}
     </div>
   );
 }

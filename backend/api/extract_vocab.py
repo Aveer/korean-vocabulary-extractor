@@ -15,6 +15,7 @@ from nlp.ranker import rank_candidates
 from nlp.translator import SentenceTranslator
 from dictionary.provider import create_provider, get_config, save_config
 from dictionary.bundled import BundledProvider
+from study.service import get_lemma_status, get_saved_card_id
 
 router = APIRouter()
 
@@ -112,12 +113,12 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
         return ExtractVocabResponse(
             cards=[],
             meta=ExtractMeta(
-                input_length=len(request.text),
-                candidate_count=0,
-                returned_count=0,
-                dictionary_provider="none",
-                selected_target_level=request.target_level,
-                candidate_count_before_filtering=candidate_count_before,
+                inputLength=len(request.text),
+                candidateCount=0,
+                returnedCount=0,
+                dictionaryProvider="none",
+                selectedTargetLevel=request.target_level,
+                candidateCountBeforeFiltering=candidate_count_before,
             ),
         )
 
@@ -129,7 +130,7 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
     ranked = rank_candidates(
         candidates,
         target_level=request.target_level,
-        word_count=request.word_count,
+        word_count=max(request.word_count * 3, request.word_count),
         dictionary_lookup=dict_lookup if provider.is_available() else None,
     )
 
@@ -139,14 +140,34 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
         level = rc.level or "unknown"
         level_distribution[level] = level_distribution.get(level, 0) + 1
 
-    # Stage 9: Format output with study lines
-    translator = SentenceTranslator()
-    cards = []
+    # Filter by study status after ranking, before final formatting
+    filtered = []
     for rc in ranked:
+        status = get_lemma_status(rc.lemma)
+        if status == "known" and request.exclude_known:
+            continue
+        if status == "ignored" and request.exclude_ignored:
+            continue
+        filtered.append((rc, status))
+        if len(filtered) >= request.word_count:
+            break
+
+    # Stage 9: Format output with study lines
+    translator = SentenceTranslator() if request.include_sentence_translation else None
+    cards = []
+    for rc, status in filtered:
         fragment = rc.source_fragment or rc.first_sentence
         sentence = rc.first_sentence
-        fragment_translation = translator.translate(fragment)
-        sentence_translation = translator.translate(sentence) if fragment != sentence else fragment_translation
+        if translator is not None:
+            fragment_translation = translator.translate(fragment)
+            sentence_translation = (
+                translator.translate(sentence)
+                if fragment != sentence
+                else fragment_translation
+            )
+        else:
+            fragment_translation = None
+            sentence_translation = None
 
         card_data = {
             "lemma": rc.lemma,
@@ -162,19 +183,21 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
             lemma=rc.lemma,
             display=rc.display,
             pos=rc.pos,
-            english_glosses=rc.english_glosses or [],
-            korean_definition=rc.korean_definition,
-            source_sentence=sentence,
-            source_sentence_translation=sentence_translation,
-            source_fragment=fragment,
-            source_fragment_translation=fragment_translation,
-            study_line=study_line,
-            csv_front=csv_front,
-            csv_back=csv_back,
+            englishGlosses=rc.english_glosses or [],
+            koreanDefinition=rc.korean_definition,
+            sourceSentence=sentence,
+            sourceSentenceTranslation=sentence_translation,
+            sourceFragment=fragment,
+            sourceFragmentTranslation=fragment_translation,
+            studyLine=study_line,
+            csvFront=csv_front,
+            csvBack=csv_back,
             level=rc.level,
-            difficulty_score=rc.difficulty_score,
-            frequency_in_text=rc.frequency,
+            difficultyScore=rc.difficulty_score,
+            frequencyInText=rc.frequency,
             reason=rc.reason,
+            studyStatus=status,
+            savedCardId=get_saved_card_id(rc.lemma, fragment),
         )
         cards.append(card)
 
@@ -183,13 +206,13 @@ def _extract(request: ExtractVocabRequest) -> ExtractVocabResponse:
     return ExtractVocabResponse(
         cards=cards,
         meta=ExtractMeta(
-            input_length=len(request.text),
-            candidate_count=len(candidates),
-            returned_count=len(cards),
-            dictionary_provider=provider_name,
-            selected_target_level=request.target_level,
-            candidate_count_before_filtering=candidate_count_before,
-            level_distribution=level_distribution,
+            inputLength=len(request.text),
+            candidateCount=len(candidates),
+            returnedCount=len(cards),
+            dictionaryProvider=provider_name,
+            selectedTargetLevel=request.target_level,
+            candidateCountBeforeFiltering=candidate_count_before,
+            levelDistribution=level_distribution,
         ),
     )
 

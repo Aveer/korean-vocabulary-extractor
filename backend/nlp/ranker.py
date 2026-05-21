@@ -10,9 +10,13 @@ Ranks lemma candidates using multiple scoring factors:
 - Penalties: too easy, proper names, duplicate families
 """
 
+import logging
 import math
 from dataclasses import dataclass, field
 from nlp.lemmatizer import LemmaCandidate
+
+
+logger = logging.getLogger(__name__)
 
 
 # TOPIK level numeric values for comparison
@@ -113,14 +117,8 @@ def rank_candidates(
     seen_families = {}  # Track word families to avoid duplicates
 
     for candidate in candidates:
-        score, difficulty_score, difficulty_estimated = _compute_score(
-            candidate, target_level, target_level_num, seen_families
-        )
-
-        if score <= 0:
-            continue
-
-        reason = _generate_reason(candidate, score, target_level, difficulty_score)
+        # Estimate difficulty first so dictionary-provided levels can refine ranking.
+        difficulty_score, difficulty_estimated = _estimate_difficulty(candidate)
 
         # Dictionary lookup (if available)
         glosses = []
@@ -134,8 +132,22 @@ def rank_candidates(
                     dict_level_num = TOPIK_LEVELS.get(level, 4)
                     difficulty_score = float(dict_level_num)
                     difficulty_estimated = False
-            except Exception:
+            except Exception as exc:
+                logger.debug(
+                    "Dictionary lookup fallback for lemma=%s (error=%s)",
+                    candidate.lemma,
+                    type(exc).__name__,
+                )
                 pass  # Degraded mode: continue without dictionary data
+
+        score = _compute_score_from_difficulty(
+            candidate, target_level_num, seen_families, difficulty_score
+        )
+
+        if score <= 0:
+            continue
+
+        reason = _generate_reason(candidate, score, target_level, difficulty_score)
 
         # Pick shortest useful fragment
         fragment = _pick_shortest_fragment(candidate)
@@ -232,20 +244,14 @@ def _is_compound_verb(lemma: str) -> bool:
     return len(stem) >= 4
 
 
-def _compute_score(
+def _compute_score_from_difficulty(
     candidate: LemmaCandidate,
-    target_level: str,
     target_level_num: float,
     seen_families: dict,
-) -> tuple[float, float, bool]:
-    """Compute ranking score for a candidate.
-
-    Returns (score, difficulty_score, difficulty_estimated).
-    """
+    difficulty_score: float,
+) -> float:
+    """Compute ranking score using a finalized difficulty score."""
     score = 0.0
-
-    # Estimate difficulty
-    difficulty_score, difficulty_estimated = _estimate_difficulty(candidate)
 
     # 1. Level fit score (MAJOR factor)
     # How well does this word's difficulty match the target level?
@@ -306,7 +312,7 @@ def _compute_score(
         score -= 2.0  # Penalize variants of the same word
     seen_families[family] = candidate.lemma
 
-    return max(score, 0), difficulty_score, difficulty_estimated
+    return max(score, 0)
 
 
 def _get_word_family(lemma: str) -> str:
@@ -325,9 +331,9 @@ def _pick_shortest_fragment(candidate: LemmaCandidate) -> str:
     """Pick the shortest useful Korean fragment containing the target word.
 
     Strategy:
-    1. Try to split the sentence into clauses
-    2. Find the smallest clause containing the surface form or lemma
-    3. If too short, expand to neighboring clause
+    1. Find the surface form in the sentence
+    2. Extract a compact window around that surface form
+    3. Truncate long fragments at a word boundary when possible
     """
     if not candidate.all_sentences:
         return candidate.first_sentence
@@ -399,61 +405,6 @@ def _extract_fragment(sentence: str, surface: str, lemma: str) -> str:
         return sentence[max(0, surface_pos - 5):surface_pos + len(surface) + 10].strip()
 
     return fragment
-
-
-def _split_into_clauses(sentence: str) -> list[str]:
-    """Split sentence into clauses by natural boundaries."""
-    # Korean clause boundaries
-    boundaries = [
-        "지만", "면서", "다가", "려면", "니까", "라서", "므로",
-        "고", "나", "던", "다가",
-        ", ", "·", " — ", "– ",
-        "(", ")", "「", "」", "『", "』",
-    ]
-
-    # Split by commas first (most common useful boundary)
-    if ", " in sentence:
-        parts = sentence.split(", ")
-        if len(parts) > 1:
-            return parts
-
-    # Try Korean connective endings
-    for boundary in boundaries:
-        if boundary in sentence:
-            parts = sentence.split(boundary)
-            if len(parts) > 1:
-                # Rejoin with boundary to preserve context
-                return [p.strip() for p in parts if p.strip()]
-
-    return [sentence]
-
-
-def _lemma_in_fragment(fragment: str, surface: str) -> bool:
-    """Check if lemma-related forms appear in fragment."""
-    # Simple check: does the fragment contain characters from the surface?
-    if len(surface) >= 2:
-        return surface[:2] in fragment
-    return False
-
-
-def _expand_fragment(sentence: str, fragment: str, surface: str) -> str | None:
-    """Expand a fragment to include neighboring context."""
-    # Find fragment position in sentence
-    pos = sentence.find(fragment)
-    if pos < 0:
-        return None
-
-    # Expand to include more context (up to ~60 chars)
-    max_len = 60
-    start = max(0, pos - 10)
-    end = min(len(sentence), pos + len(fragment) + 20)
-
-    # Adjust to natural boundaries
-    expanded = sentence[start:end].strip()
-    if len(expanded) <= max_len and surface in expanded:
-        return expanded
-
-    return None
 
 
 def _generate_reason(

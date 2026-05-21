@@ -9,12 +9,27 @@ URL: https://github.com/garfieldnate/kengdic
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Optional
 
 from dictionary.provider import DictionaryProvider
 
-BUNDLED_DICT_PATH = Path(__file__).parent / "bundled_dict.json"
+def _candidate_paths() -> list[Path]:
+    base_dir = Path(__file__).resolve().parent
+    candidates = [
+        base_dir / "bundled_dict.json",
+        base_dir.parent / "backend" / "dictionary" / "bundled_dict.json",
+        base_dir.parent / "dictionary" / "bundled_dict.json",
+    ]
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        frozen_root = Path(meipass)
+        candidates.extend([
+            frozen_root / "backend" / "dictionary" / "bundled_dict.json",
+            frozen_root / "dictionary" / "bundled_dict.json",
+        ])
+    return candidates
 
 
 class BundledProvider(DictionaryProvider):
@@ -28,7 +43,10 @@ class BundledProvider(DictionaryProvider):
     def _load(self):
         """Load bundled dictionary from JSON file."""
         try:
-            with open(BUNDLED_DICT_PATH, "r", encoding="utf-8") as f:
+            dict_path = next((p for p in _candidate_paths() if p.exists()), None)
+            if not dict_path:
+                raise OSError("bundled_dict.json not found")
+            with open(dict_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self._entries = data.get("entries", {})
             self._source = data.get("source", "kengdic")

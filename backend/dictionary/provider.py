@@ -11,10 +11,25 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
+
 from config_paths import get_config_path
 
 # Config file for dictionary settings — uses APPDATA on Windows, project-relative in dev
 CONFIG_PATH = get_config_path()
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = BACKEND_DIR.parent
+
+
+def _load_env_files() -> None:
+    backend_env = BACKEND_DIR / ".env"
+    load_dotenv(backend_env, override=False)
+    root_env = ROOT_DIR / ".env"
+    if root_env != backend_env and root_env.exists():
+        load_dotenv(root_env, override=False)
+
+
+_load_env_files()
 
 
 class DictionaryProvider(ABC):
@@ -81,13 +96,3 @@ def create_provider(provider_name: str | None = None) -> DictionaryProvider:
         return NIKLProvider(api_key)
     # Default to bundled (always available)
     return BundledProvider()
-
-
-class NullProvider(DictionaryProvider):
-    """Null provider for degraded mode (no dictionary available)."""
-
-    def lookup(self, lemma: str) -> tuple[list[str], Optional[str], Optional[str]]:
-        return [], None, None
-
-    def is_available(self) -> bool:
-        return False

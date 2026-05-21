@@ -240,6 +240,29 @@ class TestDegradedMode:
                 os.environ["KRDICT_API_KEY"] = original
 
 
+class TestEnvLoading:
+    """Test .env loading for dictionary configuration."""
+
+    def test_provider_loads_backend_env_files(self, tmp_path, monkeypatch):
+        import os
+        import dictionary.provider as provider_module
+
+        backend_dir = tmp_path / "backend"
+        backend_dir.mkdir()
+        (backend_dir / ".env").write_text("KRDICT_API_KEY=from_backend\n", encoding="utf-8")
+
+        root_dir = tmp_path
+        (root_dir / ".env").write_text("KRDICT_API_KEY=from_root\n", encoding="utf-8")
+
+        monkeypatch.delenv("KRDICT_API_KEY", raising=False)
+        monkeypatch.setattr(provider_module, "BACKEND_DIR", backend_dir)
+        monkeypatch.setattr(provider_module, "ROOT_DIR", root_dir)
+
+        provider_module._load_env_files()
+
+        assert os.environ["KRDICT_API_KEY"] == "from_backend"
+
+
 class TestAPIEndpoint:
     """Test the API endpoint."""
 
@@ -397,6 +420,80 @@ class TestAPIEndpoint:
             study_line = card["studyLine"]
             assert "(" in study_line, f"Study line missing parentheses: {study_line}"
             assert card["lemma"] in study_line, f"Study line missing lemma: {study_line}"
+
+    def test_sentence_translation_can_be_disabled(self, monkeypatch):
+        """Disabling sentence translation should skip translator usage."""
+        import sys
+        import types
+
+        fake_kiwi = types.ModuleType("kiwipiepy")
+        fake_deep_translator = types.ModuleType("deep_translator")
+
+        class FakeKiwi:
+            pass
+
+        class FakeGoogleTranslator:
+            pass
+
+        fake_kiwi.Kiwi = FakeKiwi
+        monkeypatch.setitem(sys.modules, "kiwipiepy", fake_kiwi)
+        fake_deep_translator.GoogleTranslator = FakeGoogleTranslator
+        monkeypatch.setitem(sys.modules, "deep_translator", fake_deep_translator)
+
+        import api.extract_vocab as extract_vocab
+
+        class FailingTranslator:
+            def __init__(self):
+                raise AssertionError("SentenceTranslator should not be instantiated")
+
+            def translate(self, _text):
+                raise AssertionError("SentenceTranslator should not be called")
+
+        monkeypatch.setattr(extract_vocab, "SentenceTranslator", FailingTranslator)
+
+        class DummyPipeline:
+            def extract(self, _text):
+                from types import SimpleNamespace
+
+                sentence = "당황했다."
+                candidate = SimpleNamespace(
+                    lemma="당황하다",
+                    english_glosses=["be flustered"],
+                    source_fragment=sentence,
+                    first_sentence=sentence,
+                    display="당황하다",
+                    pos="verb",
+                    korean_definition=None,
+                    level="unknown",
+                    difficulty_score=1.0,
+                    frequency=1,
+                    reason="test",
+                )
+                return [sentence], [candidate]
+
+        class DummyProvider:
+            def is_available(self):
+                return False
+
+        monkeypatch.setattr(extract_vocab, "_get_pipeline", lambda: DummyPipeline())
+        monkeypatch.setattr(extract_vocab, "_get_provider", lambda: DummyProvider())
+        monkeypatch.setattr(extract_vocab, "rank_candidates", lambda candidates, **kwargs: candidates)
+
+        request = extract_vocab.ExtractVocabRequest(
+            text="당황했다.",
+            targetLevel="ANY",
+            wordCount=5,
+            includeSentenceTranslation=False,
+        )
+        response = extract_vocab._extract(request)
+        data = response.model_dump(by_alias=True)
+        assert len(data["cards"]) >= 1
+
+        card = data["cards"][0]
+        assert card["sourceSentenceTranslation"] is None
+        assert card["sourceFragmentTranslation"] is None
+        assert " = " not in card["studyLine"]
+        assert card["csvBack"] == ""
 
     def test_csv_has_two_columns(self):
         """Default CSV must have exactly two columns: front,back."""

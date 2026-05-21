@@ -5,6 +5,7 @@ Fallback: project-relative cache_data/ directory for development.
 """
 
 import os
+import sys
 from pathlib import Path
 
 APP_NAME = "KoreanVocabExtractor"
@@ -12,6 +13,10 @@ APP_NAME = "KoreanVocabExtractor"
 
 def _get_app_data_dir() -> Path:
     """Get the application data directory for the current platform."""
+    override = os.environ.get("KVE_DATA_DIR")
+    if override:
+        return Path(override)
+
     # Windows: %APPDATA%/KoreanVocabExtractor/
     if os.name == "nt" or "APPDATA" in os.environ:
         appdata = os.environ.get("APPDATA", "")
@@ -19,6 +24,10 @@ def _get_app_data_dir() -> Path:
             return Path(appdata) / APP_NAME
 
     # macOS: ~/Library/Application Support/KoreanVocabExtractor/
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / APP_NAME
+
+    # Linux/Unix: $XDG_DATA_HOME/KoreanVocabExtractor/
     if os.environ.get("XDG_DATA_HOME"):
         return Path(os.environ["XDG_DATA_HOME"]) / APP_NAME
 

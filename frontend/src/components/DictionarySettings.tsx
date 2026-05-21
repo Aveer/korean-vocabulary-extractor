@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppTheme, DictionaryConfig, DictionaryProvider } from "../types";
 
 interface Props {
@@ -24,6 +24,17 @@ export default function DictionarySettings({
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const providerTouchedRef = useRef(false);
+  const apiKeyTouchedRef = useRef(false);
+
+  useEffect(() => {
+    if (saving || providerTouchedRef.current || apiKeyTouchedRef.current) {
+      return;
+    }
+
+    const nextProvider = config?.provider || "bundled";
+    setSelectedProvider((current) => (current === nextProvider ? current : nextProvider));
+  }, [config?.provider, saving]);
 
   const hasChanges =
     (config && selectedProvider !== config.provider) ||
@@ -34,6 +45,8 @@ export default function DictionarySettings({
     setStatus(null);
     try {
       await onSave(selectedProvider, selectedProvider === "nikl" ? apiKey || undefined : undefined);
+      providerTouchedRef.current = false;
+      apiKeyTouchedRef.current = false;
       setStatus({ type: "success", message: "Settings saved." });
     } catch (err) {
       setStatus({
@@ -77,6 +90,7 @@ export default function DictionarySettings({
                 value="bundled"
                 checked={selectedProvider === "bundled"}
                 onChange={() => {
+                  providerTouchedRef.current = true;
                   setSelectedProvider("bundled");
                   setStatus(null);
                 }}
@@ -99,6 +113,7 @@ export default function DictionarySettings({
                 value="nikl"
                 checked={selectedProvider === "nikl"}
                 onChange={() => {
+                  providerTouchedRef.current = true;
                   setSelectedProvider("nikl");
                   setStatus(null);
                 }}
@@ -121,6 +136,7 @@ export default function DictionarySettings({
                     placeholder="Paste your NIKL API key here"
                     value={apiKey}
                     onChange={(e) => {
+                      apiKeyTouchedRef.current = true;
                       setApiKey(e.target.value);
                       setStatus(null);
                     }}

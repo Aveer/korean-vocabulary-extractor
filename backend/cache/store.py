@@ -6,7 +6,6 @@ Caches dictionary lookup results by lemma to reduce API calls.
 import json
 import os
 import time
-from pathlib import Path
 from typing import Any, Optional
 
 from config_paths import get_cache_file
