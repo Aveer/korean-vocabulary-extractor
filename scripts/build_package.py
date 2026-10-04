@@ -33,6 +33,9 @@ SPEC_FILE = ROOT_DIR / f"{APP_NAME}.spec"
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
 APP_DIR = DIST_DIR / APP_NAME
+LICENSE_FILE = ROOT_DIR / "LICENSE"
+THIRD_PARTY_NOTICES_FILE = ROOT_DIR / "THIRD_PARTY_NOTICES.md"
+LICENSES_DIR = ROOT_DIR / "LICENSES"
 
 
 def _executable_name() -> str:
@@ -88,6 +91,22 @@ def _build_with_pyinstaller() -> Path:
     if not executable.exists():
         raise RuntimeError(f"Packaged executable not found: {executable}")
     return executable
+
+
+def _stage_license_files() -> None:
+    required_files = [LICENSE_FILE, THIRD_PARTY_NOTICES_FILE]
+    for source in required_files:
+        if not source.is_file():
+            raise RuntimeError(f"Required license file is missing: {source}")
+        shutil.copy2(source, APP_DIR / source.name)
+
+    if not LICENSES_DIR.is_dir():
+        raise RuntimeError(f"Required license directory is missing: {LICENSES_DIR}")
+
+    target_licenses = APP_DIR / "LICENSES"
+    shutil.rmtree(target_licenses, ignore_errors=True)
+    shutil.copytree(LICENSES_DIR, target_licenses)
+    print("Staged license and third-party notice files into packaged app.")
 
 
 def _find_free_port(start_port: int) -> int:
@@ -303,6 +322,7 @@ def main() -> int:
     _ensure_frontend(args.skip_frontend)
     _ensure_python_deps(args.skip_python_install)
     executable = _build_with_pyinstaller()
+    _stage_license_files()
     if args.no_smoke:
         print("Skipping executable smoke test.")
     else:
