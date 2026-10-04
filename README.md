@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/korean-vocab-extractor-banner.webp" alt="Korean Vocab Extractor — from Korean text to study-ready vocabulary" width="100%">
+</p>
+
 # Korean Vocab Extractor
 
 Paste Korean text → turn it into a local study quest with vocabulary cards, review, and progress.
